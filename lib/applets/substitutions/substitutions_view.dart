@@ -276,6 +276,15 @@ class _SubstitutionsViewState extends ConsumerState<SubstitutionsView>
                       onPressed: () => widget.openDrawerCb!(),
                     )
                   : null,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.history),
+                  tooltip: AppLocalizations.of(context).substitutionsHistory,
+                  onPressed: () async {
+                    await context.push('/common/substitutions/history');
+                  },
+                ),
+              ],
             ),
             floatingActionButton: FloatingActionButton(
               heroTag: null,
@@ -369,6 +378,15 @@ class _SubstitutionsViewState extends ConsumerState<SubstitutionsView>
                       onPressed: () => widget.openDrawerCb!(),
                     )
                   : null,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.history),
+                  tooltip: AppLocalizations.of(context).substitutionsHistory,
+                  onPressed: () async {
+                    await context.push('/common/substitutions/history');
+                  },
+                ),
+              ],
             ),
             floatingActionButton: FloatingActionButton(
               heroTag: null,

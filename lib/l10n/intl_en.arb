@@ -299,6 +299,12 @@
   "conversationNote": "By long-pressing a conversation you can hide or show it. If every receiver hides it, it will be deleted and when new activity occurs, it will be shown again.",
 
   "substitutionsFilter": "Substitutions filter",
+  "substitutionsHistory": "Change history",
+  "substitutionsHistoryEmpty": "No changes recorded yet.",
+  "substitutionsHistoryEmptySubtitle": "Changes to the substitution plan will appear here once detected.",
+  "substitutionsHistoryStatusAdded": "New",
+  "substitutionsHistoryStatusRemoved": "Cancelled",
+  "substitutionsHistoryStatusModified": "Changed",
   "developmentModeHint": "Change the URL to the autoset provider here to test your implementation before creating a PR for your school.",
   "reset": "Reset",
   "autoSet": "Set automatically",

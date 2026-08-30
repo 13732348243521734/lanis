@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lanis/applets/definitions.dart';
 import 'package:lanis/applets/substitutions/definition.dart';
 import 'package:lanis/applets/substitutions/substitutions_filter_settings.dart';
+import 'package:lanis/applets/substitutions/substitutions_history_view.dart';
 import 'package:lanis/utils/deep_link.dart';
 import 'package:lanis/widgets/applet_home_shell.dart';
 
@@ -24,6 +25,13 @@ List<RouteBase> buildSubstitutionRoutes(AppletRouteContext ctx) {
           builder: (context, state) => DeepLinkPopScope(
             fallbackPath: home,
             child: const SubstitutionsFilterSettings(),
+          ),
+        ),
+        GoRoute(
+          path: 'history',
+          builder: (context, state) => DeepLinkPopScope(
+            fallbackPath: home,
+            child: const SubstitutionsHistoryScreen(),
           ),
         ),
       ],

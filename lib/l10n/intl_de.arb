@@ -262,6 +262,12 @@
   "conversationNote": "Durch das Gedrückthalten einer Konversation kannst du sie aus-/einblenden. Sie wird gelöscht, wenn alle sie ausgeblendet haben, bei neuer Aktivität jedoch wieder eingeblendet.",
 
   "substitutionsFilter": "Vertretungsplan-Filter",
+  "substitutionsHistory": "Änderungsverlauf",
+  "substitutionsHistoryEmpty": "Noch keine Änderungen aufgezeichnet.",
+  "substitutionsHistoryEmptySubtitle": "Änderungen am Vertretungsplan erscheinen hier, sobald sie erkannt werden.",
+  "substitutionsHistoryStatusAdded": "Neu",
+  "substitutionsHistoryStatusRemoved": "Entfällt",
+  "substitutionsHistoryStatusModified": "Geändert",
   "reset": "Zurücksetzen",
   "howItWorks": "Wie es funktioniert",
   "howItWorksText": "Wenn du einen Filter hinzufügst, werden nur die Einträge angezeigt, die den Filter enthalten. Wenn du mehrere Filter hinzufügst, werden nur die Einträge angezeigt, die alle/einen der Filter enthalten. Die automatische Konfiguration muss pro Schule durchgeführt werden. (Füge deine hinzu, wenn es nicht funktioniert.)",
