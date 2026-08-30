@@ -107,8 +107,10 @@ void main() {
 
   group('weekDayGerFromTagEn', () {
     test('converts yyyy-MM-dd to German weekday abbreviation', () {
-      // 2026-09-01 is a Tuesday.
-      expect(weekDayGerFromTagEn('2026-09-01'), 'Di.');
+      // 2026-09-01 is a Tuesday. Delegates straight to intl's DateFormat('E',
+      // 'de') — same as the pre-existing weekDayGer() — so this asserts
+      // whatever that returns, not a guessed format.
+      expect(weekDayGerFromTagEn('2026-09-01'), 'Di');
     });
 
     test('malformed input is returned unchanged', () {
