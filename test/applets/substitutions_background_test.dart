@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:liblanis/liblanis.dart';
 import 'package:lanis/applets/substitutions/background.dart';
 
@@ -18,6 +19,10 @@ Substitution _sub({
 );
 
 void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('de');
+  });
+
   group('buildSubstitutionsNotification', () {
     test('empty events -> no notification', () {
       expect(buildSubstitutionsNotification([]), isNull);

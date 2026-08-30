@@ -122,11 +122,11 @@ String fieldLabel(String field) {
 String weekDayGerFromTagEn(String tagEn) {
   final parts = tagEn.split('-');
   if (parts.length != 3) return tagEn;
-  final date = DateTime(
-    int.parse(parts[0]),
-    int.parse(parts[1]),
-    int.parse(parts[2]),
-  );
+  final year = int.tryParse(parts[0]);
+  final month = int.tryParse(parts[1]);
+  final day = int.tryParse(parts[2]);
+  if (year == null || month == null || day == null) return tagEn;
+  final date = DateTime(year, month, day);
   final germanFormat = DateFormat('E', 'de');
   return germanFormat.format(date);
 }
