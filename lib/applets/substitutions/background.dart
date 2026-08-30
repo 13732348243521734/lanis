@@ -15,11 +15,12 @@ Future<void> substitutionsBackgroundTask(
   await parser.getHome();
 
   // Feature 1: getHome() already diffed this fetch against the last-seen
-  // snapshot (per day) and persisted the new one. lastChangeEvents is
-  // empty on the very first fetch after install/update (no artificial
-  // "everything is new" notification) and empty on any fetch that didn't
-  // actually change anything -- so unlike before, this task no longer
-  // re-sends the full substitution list on every run.
+  // snapshot (per day) and persisted the new one. On the very first fetch
+  // for a day (no prior snapshot yet, e.g. right after install/update),
+  // every current entry comes back as an 'added' event -- so this task
+  // still notifies about the full current plan the first time, but from
+  // then on only about what actually changed, instead of re-sending the
+  // full list on every single run like before.
   final notification = buildSubstitutionsNotification(parser.lastChangeEvents);
   if (notification == null) {
     return;
