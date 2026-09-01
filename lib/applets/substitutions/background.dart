@@ -120,14 +120,11 @@ String fieldLabel(String field) {
 
 /// Like the old `weekDayGer(dateString)`, but keyed off the diff event's
 /// `tag_en` (`yyyy-MM-dd`) instead of the display-formatted `dd.MM.yyyy`.
+/// Date parsing itself is liblanis' shared `tagEnToDateTime` — see that
+/// package for the single source of truth on `tag_en` <-> date conversions.
 String weekDayGerFromTagEn(String tagEn) {
-  final parts = tagEn.split('-');
-  if (parts.length != 3) return tagEn;
-  final year = int.tryParse(parts[0]);
-  final month = int.tryParse(parts[1]);
-  final day = int.tryParse(parts[2]);
-  if (year == null || month == null || day == null) return tagEn;
-  final date = DateTime(year, month, day);
+  final date = tagEnToDateTime(tagEn);
+  if (date == null) return tagEn;
   final germanFormat = DateFormat('E', 'de');
   return germanFormat.format(date);
 }

@@ -27,7 +27,7 @@ class SubstitutionsHistoryScreen extends ConsumerWidget {
         title: Text(AppLocalizations.of(context).substitutionsHistory),
       ),
       body: events.isEmpty
-          ? _EmptyState(context: context)
+          ? const _EmptyState()
           : ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: events.length,
@@ -39,8 +39,7 @@ class SubstitutionsHistoryScreen extends ConsumerWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  final BuildContext context;
-  const _EmptyState({required this.context});
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
@@ -134,18 +133,13 @@ class _SubstitutionHistoryTile extends StatelessWidget {
 
   String _formatStunde(String stunde) => 'Std. ${stunde.replaceAll(' - ', '/')}';
 
+  /// Date parsing delegated to liblanis' shared `tagEnToParsedDate` — see
+  /// that package for the single source of truth on `tag_en` conversions.
+  /// [formatDate] then applies this app's own dd.MM.yyyy display styling;
+  /// it throws on anything it can't parse, so malformed `tagEn` values
+  /// fall back to the raw value instead of crashing the tile.
   String _formatDay(String tagEn) {
-    final parts = tagEn.split('-');
-    if (parts.length != 3) return tagEn;
-    try {
-      final date = DateTime(
-        int.parse(parts[0]),
-        int.parse(parts[1]),
-        int.parse(parts[2]),
-      );
-      return formatDate(date.format('dd.MM.yyyy'));
-    } catch (_) {
-      return tagEn;
-    }
+    if (tagEnToDateTime(tagEn) == null) return tagEn;
+    return formatDate(tagEnToParsedDate(tagEn));
   }
 }
