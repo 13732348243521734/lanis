@@ -1,10 +1,9 @@
-import 'package:dart_date/dart_date.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:lanis/generated/l10n.dart';
 import 'package:liblanis/liblanis.dart';
 
+import 'background.dart' show fieldLabel;
 import 'substitutions_view.dart' show formatDate;
 
 class SubstitutionsHistoryScreen extends ConsumerWidget {
@@ -32,7 +31,7 @@ class SubstitutionsHistoryScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: events.length,
               itemBuilder: (context, index) =>
-                  _SubstitutionHistoryTile(event: events[index]),
+                  SubstitutionHistoryTile(event: events[index]),
             ),
     );
   }
@@ -70,9 +69,9 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _SubstitutionHistoryTile extends StatelessWidget {
+class SubstitutionHistoryTile extends StatelessWidget {
   final SubstitutionChangeEvent event;
-  const _SubstitutionHistoryTile({required this.event});
+  const SubstitutionHistoryTile({super.key, required this.event});
 
   @override
   Widget build(BuildContext context) {
@@ -115,11 +114,26 @@ class _SubstitutionHistoryTile extends StatelessWidget {
           ].whereType<String>().join(' · '),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text(
-          [
-            _formatDay(event.tagEn),
-            if (subtitleParts.isNotEmpty) subtitleParts,
-          ].join(' — '),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              [
+                _formatDay(event.tagEn),
+                if (subtitleParts.isNotEmpty) subtitleParts,
+              ].join(' — '),
+            ),
+            if (event.type == SubstitutionChangeType.modified &&
+                event.fieldDeltas.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  event.fieldDeltas.map(_describeDelta).join(', '),
+                  style: TextStyle(color: color, fontStyle: FontStyle.italic),
+                ),
+              ),
+          ],
         ),
         trailing: Chip(
           label: Text(label),
@@ -130,6 +144,9 @@ class _SubstitutionHistoryTile extends StatelessWidget {
       ),
     );
   }
+
+  String _describeDelta(SubstitutionFieldDelta delta) =>
+      '${fieldLabel(delta.field)}: ${delta.oldValue ?? '–'} → ${delta.newValue ?? '–'}';
 
   String _formatStunde(String stunde) => 'Std. ${stunde.replaceAll(' - ', '/')}';
 
