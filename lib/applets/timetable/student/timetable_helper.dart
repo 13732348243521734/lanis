@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:liblanis/liblanis.dart';
 import 'package:lanis/utils/random_color.dart';
+import 'package:lanis/utils/subject_colors.dart';
 
 class TimeTableHelper {
   static Color getColorForLesson(dynamic settings, lesson) {
+    // 1. Did the user pick a custom color for this lesson themselves?
     final colors = settings is Map ? settings['lesson-colors'] : null;
-    if (colors is! Map) {
-      return RandomColor.bySeed(lesson.name!).primary;
+    if (colors is Map) {
+      final stored = colors[lesson.id.split('-')[0]];
+      if (stored is String && stored.isNotEmpty) {
+        return Color(int.parse(stored, radix: 16));
+      }
     }
-    final stored = colors[lesson.id.split('-')[0]];
-    if (stored is String && stored.isNotEmpty) {
-      return Color(int.parse(stored, radix: 16));
+
+    // 2. Does the (normalized) subject name match our curated color table?
+    final curated = SubjectColors.lookup(lesson.name!);
+    if (curated != null) {
+      return curated.primary;
     }
+
+    // 3. Last resort: deterministic hash-based color.
     return RandomColor.bySeed(lesson.name!).primary;
   }
 

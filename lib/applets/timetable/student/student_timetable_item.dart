@@ -9,6 +9,7 @@ import 'package:lanis/applets/timetable/student/student_timetable_better_view.da
 import 'package:lanis/applets/timetable/student/timetable_helper.dart';
 import 'package:lanis/generated/l10n.dart';
 import 'package:lanis/utils/root_nav.dart';
+import 'package:lanis/utils/subject_colors.dart';
 
 class ItemBlock extends StatelessWidget {
   final TimetableSubject? subject;
@@ -46,19 +47,72 @@ class ItemBlock extends StatelessWidget {
     TimetableSubject lesson,
   ) {
     Color selectedColor = TimeTableHelper.getColorForLesson(settings, lesson);
+    final curated = SubjectColors.lookup(lesson.name!);
+    final quickPickColors = curated == null
+        ? const <Color>[]
+        : [curated.primary, ...curated.alternatives];
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          content: SingleChildScrollView(
-            child: ColorPicker(
-              pickerColor: selectedColor,
-              onColorChanged: (c) => {selectedColor = c},
-              enableAlpha: false,
-              labelTypes: [],
-            ),
-          ),
-          actions: <Widget>[
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (quickPickColors.isNotEmpty) ...[
+                      Text(
+                        AppLocalizations.of(context).timetableColorSuggestions,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: quickPickColors.map((swatchColor) {
+                          final bool isSelected =
+                              selectedColor.toARGB32() ==
+                              swatchColor.toARGB32();
+                          return GestureDetector(
+                            onTap: () {
+                              setDialogState(() {
+                                selectedColor = swatchColor;
+                              });
+                            },
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: swatchColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.transparent,
+                                  width: 3,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    ColorPicker(
+                      pickerColor: selectedColor,
+                      onColorChanged: (c) => setDialogState(() {
+                        selectedColor = c;
+                      }),
+                      enableAlpha: false,
+                      labelTypes: [],
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
             ElevatedButton(
               child: Text(AppLocalizations.of(context).clear),
               onPressed: () {
@@ -91,7 +145,9 @@ class ItemBlock extends StatelessWidget {
                 updateSettings('lesson-colors', colors);
               },
             ),
-          ],
+              ],
+            );
+          },
         );
       },
     );

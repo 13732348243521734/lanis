@@ -277,6 +277,7 @@
   "timetableSwitchToClass": "Wechsel zum Klassenstundenplan",
   "timetableAllWeeks": "Gesamtplan",
   "timetableWeek": "{week}-Woche",
+  "timetableColorSuggestions": "Vorschläge",
   "dateWithHours": "{date}, {hours} Stunde",
   "contributors": "Mitwirkende",
   "becomeContributor": "Werde Mitwirkender!",

@@ -321,6 +321,7 @@
   "timetableSwitchToClass": "Switch to Class timetable",
   "timetableAllWeeks": "All Weeks",
   "timetableWeek": "{week}-Week",
+  "timetableColorSuggestions": "Suggestions",
   "contributors": "Contributors",
   "becomeContributor": "Become a contributor",
   "done": "Done",

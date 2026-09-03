@@ -1,0 +1,122 @@
+[
+  {
+    "id": "deutsch",
+    "aliases": ["de", "deu", "deutsch", "d"],
+    "primary": "#C62828",
+    "alternatives": ["#8B0000"]
+  },
+  {
+    "id": "mathematik",
+    "aliases": ["ma", "mathe", "mathematik", "m"],
+    "primary": "#1565C0",
+    "alternatives": ["#0D47A1"]
+  },
+  {
+    "id": "englisch",
+    "aliases": ["en", "eng", "englisch", "e"],
+    "primary": "#EC407A",
+    "alternatives": ["#D81B60"]
+  },
+  {
+    "id": "franzoesisch",
+    "aliases": ["fr", "franz", "franzoesisch", "f"],
+    "primary": "#4FC3F7",
+    "alternatives": ["#26C6DA"]
+  },
+  {
+    "id": "latein",
+    "aliases": ["la", "latein", "l"],
+    "primary": "#8D6E63",
+    "alternatives": []
+  },
+  {
+    "id": "spanisch",
+    "aliases": ["sp", "span", "spanisch", "s"],
+    "primary": "#E64A19",
+    "alternatives": []
+  },
+  {
+    "id": "biologie",
+    "aliases": ["bio", "biologie"],
+    "primary": "#2E7D32",
+    "alternatives": []
+  },
+  {
+    "id": "chemie",
+    "aliases": ["ch", "chem", "chemie"],
+    "primary": "#00897B",
+    "alternatives": ["#FBC02D"]
+  },
+  {
+    "id": "physik",
+    "aliases": ["ph", "phys", "physik", "phy"],
+    "primary": "#607D8B",
+    "alternatives": ["#FB8C00"]
+  },
+  {
+    "id": "informatik",
+    "aliases": ["inf", "info", "informatik"],
+    "primary": "#00838F",
+    "alternatives": ["#90A4AE"]
+  },
+  {
+    "id": "geschichte",
+    "aliases": ["ge", "gesch", "geschichte", "g"],
+    "primary": "#A1887F",
+    "alternatives": ["#C9A876"]
+  },
+  {
+    "id": "erdkunde",
+    "aliases": ["ek", "erdkunde", "geo", "geographie"],
+    "primary": "#EF6C00",
+    "alternatives": ["#558B2F"]
+  },
+  {
+    "id": "powi",
+    "aliases": ["powi", "pw", "politik", "wirtschaft"],
+    "primary": "#F9A825",
+    "alternatives": ["#8D6E63"]
+  },
+  {
+    "id": "religion",
+    "aliases": ["eth", "ethik", "ethi", "re", "rel", "religion", "ev", "rev", "rk", "ka", "rka"],
+    "primary": "#7E57C2",
+    "alternatives": ["#F5F5F5"]
+  },
+  {
+    "id": "kunst",
+    "aliases": ["ku", "kunst"],
+    "primary": "#C2185B",
+    "alternatives": ["#F4511E"]
+  },
+  {
+    "id": "musik",
+    "aliases": ["mu", "musik"],
+    "primary": "#FDD835",
+    "alternatives": ["#F06292"]
+  },
+  {
+    "id": "sport",
+    "aliases": ["sport", "spo"],
+    "primary": "#FF7043",
+    "alternatives": ["#9CCC65"]
+  },
+  {
+    "id": "darstellendesspiel",
+    "aliases": ["ds", "darstellendesspiel", "dsp"],
+    "primary": "#8E24AA",
+    "alternatives": ["#880E4F"]
+  },
+  {
+    "id": "philosophie",
+    "aliases": ["phil", "philosophie"],
+    "primary": "#757575",
+    "alternatives": ["#78909C"]
+  },
+  {
+    "id": "sozialkunde",
+    "aliases": ["sk", "sowi"],
+    "primary": "#00695C",
+    "alternatives": []
+  }
+]

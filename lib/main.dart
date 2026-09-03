@@ -20,6 +20,7 @@ import 'package:lanis/utils/glitchtip.dart';
 import 'package:lanis/utils/logger.dart';
 import 'package:lanis/utils/mono_text_viewer.dart';
 import 'package:lanis/utils/phoenix.dart';
+import 'package:lanis/utils/subject_colors.dart';
 import 'package:lanis/utils/theme_settings.dart';
 import 'package:lanis/view/startup_error_view.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -54,6 +55,7 @@ Future<void> _startApp() async {
     }
 
     await initializeDateFormatting();
+    await SubjectColors.ensureLoaded();
 
     runApp(
       ProviderScope(
