@@ -7,6 +7,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:lanis/applets/conversations/view/shared.dart';
 import 'package:lanis/applets/timetable/student/student_timetable_better_view.dart';
 import 'package:lanis/applets/timetable/student/timetable_helper.dart';
+import 'package:lanis/applets/timetable/student/timetable_row_visibility.dart';
 import 'package:lanis/generated/l10n.dart';
 import 'package:lanis/utils/root_nav.dart';
 
@@ -497,6 +498,18 @@ class ListItem extends StatelessWidget {
         }
       }
 
+      // Also hide this pause if nothing is scheduled for the rest of the
+      // day -- a break before the school day is effectively over shouldn't
+      // still be shown.
+      if (!hidePause &&
+          shouldHideTrailingPause(
+            pauseEnd: row.endTime,
+            blocksForDay: blocksForDay,
+            rowForStunde: _rowForStunde,
+          )) {
+        hidePause = true;
+      }
+
       if (!hidePause) {
         return ItemBlock(
           height: pauseHeight,
@@ -509,6 +522,27 @@ class ListItem extends StatelessWidget {
           updateSettings: updateSettings,
         );
       }
+    }
+
+    // A subject-less lesson row, sandwiched between an earlier and a
+    // later lesson that day (e.g. a free period), gets the same
+    // "große Pause" visual as a real break instead of staying invisible.
+    if (row.type == TimeTableRowType.lesson &&
+        blocksHere.isEmpty &&
+        isSandwichedFreePeriod(
+          stunde: row.lessonIndex,
+          blocksForDay: blocksForDay,
+        )) {
+      return ItemBlock(
+        height: itemHeight,
+        width: width,
+        offset: verticalOffset,
+        hOffset: horizontalOffset,
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        onlyColor: true,
+        settings: settings,
+        updateSettings: updateSettings,
+      );
     }
 
     // If no block starts here, return an empty Positioned widget with a
