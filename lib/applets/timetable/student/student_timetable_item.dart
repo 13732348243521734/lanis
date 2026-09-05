@@ -11,7 +11,8 @@ import 'package:lanis/generated/l10n.dart';
 import 'package:lanis/utils/root_nav.dart';
 
 class ItemBlock extends StatelessWidget {
-  final TimetableSubject? subject;
+  final MergedLessonBlock? block;
+  final TimeTableData? data;
   final double height;
   final Color? color;
   final bool empty;
@@ -26,7 +27,8 @@ class ItemBlock extends StatelessWidget {
 
   const ItemBlock({
     super.key,
-    this.subject,
+    this.block,
+    this.data,
     required this.height,
     this.color,
     this.empty = false,
@@ -43,7 +45,7 @@ class ItemBlock extends StatelessWidget {
     BuildContext context,
     Map<String, dynamic> settings,
     Function updateSettings,
-    TimetableSubject lesson,
+    MergedLessonBlock lesson,
   ) {
     Color selectedColor = TimeTableHelper.getColorForLesson(settings, lesson);
     showDialog(
@@ -97,7 +99,25 @@ class ItemBlock extends StatelessWidget {
     );
   }
 
+  /// Resolves the real `TimeTableRow` (with clock times) for a single
+  /// hour number, using [TimeTableRow.lessonIndex] -- which always equals
+  /// the originating `TimetableSubject.stunde` (both come from the same
+  /// underlying HTML row index; see liblanis' timetable parser). Returns
+  /// `null` if [data] wasn't provided or the hour isn't found.
+  TimeTableRow? _rowForStunde(int stunde) {
+    for (final row in data?.hours ?? const <TimeTableRow>[]) {
+      if (row.type == TimeTableRowType.lesson && row.lessonIndex == stunde) {
+        return row;
+      }
+    }
+    return null;
+  }
+
   void showSubject(BuildContext context) {
+    final startRow = block == null ? null : _rowForStunde(block!.startStunde);
+    final endRow = block == null ? null : _rowForStunde(block!.endStunde);
+    final overlay = block?.overlay;
+
     showRootModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -121,7 +141,7 @@ class ItemBlock extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        subject?.name ??
+                        block?.name ??
                             AppLocalizations.of(context).unknownLesson,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
@@ -133,7 +153,7 @@ class ItemBlock extends StatelessWidget {
                                 context,
                                 settings,
                                 updateSettings,
-                                subject!,
+                                block!,
                               );
                             },
                             icon: Container(
@@ -145,21 +165,21 @@ class ItemBlock extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (subject != null &&
-                              (subject?.id == null ||
-                                  !subject!.id!.startsWith('custom')))
+                          if (block != null &&
+                              (block?.id == null ||
+                                  !block!.id!.startsWith('custom')))
                             IconButton(
                               onPressed: () {
                                 Navigator.pop(context);
                                 updateSettings('hidden-lessons', [
                                   ...?settings['hidden-lessons'],
-                                  subject!.id,
+                                  block!.id,
                                 ]);
                                 showSnackbar(
                                   context,
                                   AppLocalizations.of(
                                     context,
-                                  ).lessonHidden(subject!.name!),
+                                  ).lessonHidden(block!.name),
                                   seconds: 3,
                                 );
                               },
@@ -170,16 +190,42 @@ class ItemBlock extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (subject?.raum != null)
-                  modalSheetItem(subject!.raum!, Icons.place),
-                modalSheetItem(
-                  "${subject!.startTime.toFlutter().format(context)} - ${subject!.endTime.toFlutter().format(context)} (${subject!.duration} ${subject!.duration == 1 ? "Stunde" : "Stunden"})",
-                  Icons.access_time,
-                ),
-                if (subject?.lehrer != null)
-                  modalSheetItem(subject!.lehrer!, Icons.person),
-                if (subject?.badge != null)
-                  modalSheetItem(subject!.badge!, Icons.info),
+                if (block?.raum != null)
+                  modalSheetItem(block!.raum!, Icons.place),
+                if (startRow != null && endRow != null)
+                  modalSheetItem(
+                    "${startRow.startTime.toFlutter().format(context)} - ${endRow.endTime.toFlutter().format(context)} (${block!.stunden.length} ${block!.stunden.length == 1 ? "Stunde" : "Stunden"})",
+                    Icons.access_time,
+                  ),
+                if (block?.lehrer != null)
+                  modalSheetItem(block!.lehrer!, Icons.person),
+                // Feature 2 (Stundenplan-Overlay): substitution info, if
+                // this block matched one. No badge line here -- unlike
+                // TimetableSubject, MergedLessonBlock doesn't carry the
+                // original course/Kurs badge (GK/LK) through decompose +
+                // merge; a real gap versus the old detail sheet, not
+                // silently papered over.
+                if (overlay?.isEva == true)
+                  modalSheetItem(
+                    AppLocalizations.of(context).timetableEva,
+                    Icons.warning_amber_outlined,
+                  ),
+                if (overlay?.vertreter != null)
+                  modalSheetItem(
+                    AppLocalizations.of(
+                      context,
+                    ).timetableSubstituteTeacher(overlay!.vertreter!),
+                    Icons.swap_horiz,
+                  ),
+                if (overlay?.substituteRaum != null)
+                  modalSheetItem(
+                    AppLocalizations.of(
+                      context,
+                    ).timetableSubstituteRoom(overlay!.substituteRaum!),
+                    Icons.meeting_room_outlined,
+                  ),
+                if (overlay?.hinweis != null)
+                  modalSheetItem(overlay!.hinweis!, Icons.info_outline),
               ],
             ),
           ),
@@ -207,17 +253,17 @@ class ItemBlock extends StatelessWidget {
     );
   }
 
-  Widget _colorContainer(double width, {Widget? child}) {
+  Widget _colorContainer(double width, {Widget? child, Color? overrideColor}) {
     return Container(
       width: width,
       height: height,
       clipBehavior: Clip.hardEdge, // Clips any overflow, useful for the y axis
       decoration: BoxDecoration(
         border: Border.all(
-          color: color ?? Colors.transparent,
+          color: overrideColor ?? color ?? Colors.transparent,
           width: min(1, width / 3),
         ),
-        color: color ?? Colors.transparent,
+        color: overrideColor ?? color ?? Colors.transparent,
         borderRadius: BorderRadius.circular(8.0),
       ),
       padding: EdgeInsets.all(4.0),
@@ -225,12 +271,56 @@ class ItemBlock extends StatelessWidget {
     );
   }
 
+  /// Feature plan 7.3 display rules. EVA takes priority: when set, the
+  /// whole block renders red with everything struck through, regardless
+  /// of any other overlay field.
+  Color? _overlayBackgroundColor(LessonOverlay? overlay) {
+    if (overlay == null) return null;
+    if (overlay.isEva) return Colors.red.shade400;
+    if (overlay.substituteRaum != null) return Colors.orange.shade400;
+    return null;
+  }
+
+  /// One text line, struck through with an optional replacement value
+  /// shown alongside (7.3: old teacher/room struck through, substitute
+  /// shown next to it). With no [replacement] and no [strike], this is
+  /// just a plain `Text` -- the common, non-overlaid case.
+  Widget _overlayableLine(
+    String original,
+    String? replacement,
+    TextStyle style, {
+    bool strike = false,
+  }) {
+    if (replacement == null && !strike) {
+      return Text(original, style: style, maxLines: 1);
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          original,
+          style: style.copyWith(decoration: TextDecoration.lineThrough),
+          maxLines: 1,
+        ),
+        if (replacement != null) ...[
+          const SizedBox(width: 4),
+          Flexible(child: Text(replacement, style: style, maxLines: 1)),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final overlay = block?.overlay;
+    final overrideColor = _overlayBackgroundColor(overlay);
+    final effectiveColor = overrideColor ?? color;
+    final isEva = overlay?.isEva == true;
+
     TextStyle textStyle = TextStyle(
       fontSize: 12,
-      color: color != null
-          ? color!.computeLuminance() > 0.5
+      color: effectiveColor != null
+          ? effectiveColor.computeLuminance() > 0.5
                 ? Colors.black
                 : Colors.white
           : null,
@@ -247,12 +337,13 @@ class ItemBlock extends StatelessWidget {
       child: disableAction
           ? _colorContainer(calcWidth, child: SizedBox())
           : InkWell(
-              onTap: subject != null ? () => showSubject(context) : null,
+              onTap: block != null ? () => showSubject(context) : null,
               child: _colorContainer(
                 calcWidth,
+                overrideColor: overrideColor,
                 child: onlyColor
                     ? SizedBox()
-                    : (!onlyColor && subject != null)
+                    : (!onlyColor && block != null)
                     ? SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -264,24 +355,27 @@ class ItemBlock extends StatelessWidget {
                                   ? 99999
                                   : 8.0,
                               children: [
-                                Text(
-                                  subject!.name ?? '',
-                                  style: textStyle,
-                                  maxLines: 1,
+                                _overlayableLine(
+                                  block!.name,
+                                  null,
+                                  textStyle,
+                                  strike: isEva,
                                 ),
-                                if (subject!.lehrer != null)
-                                  Text(
-                                    subject!.lehrer!,
-                                    style: textStyle,
-                                    maxLines: 1,
+                                if (block!.lehrer != null)
+                                  _overlayableLine(
+                                    block!.lehrer!,
+                                    isEva ? null : overlay?.vertreter,
+                                    textStyle,
+                                    strike: isEva,
                                   ),
                               ],
                             ),
-                            if (subject!.raum != null)
-                              Text(
-                                subject!.raum!,
-                                style: textStyle,
-                                maxLines: 1,
+                            if (block!.raum != null)
+                              _overlayableLine(
+                                block!.raum!,
+                                isEva ? null : overlay?.substituteRaum,
+                                textStyle,
+                                strike: isEva,
                               ),
                           ],
                         ),
@@ -300,7 +394,8 @@ class ItemBlock extends StatelessWidget {
     required this.hOffset,
     required this.updateSettings,
     required this.settings,
-  }) : subject = null,
+  }) : block = null,
+       data = null,
        color = null,
        onlyColor = false,
        disableAction = true,
@@ -311,8 +406,10 @@ class ListItem extends StatelessWidget {
   final int iteration;
   final TimeTableRow row;
   final TimeTableData data;
-  final List<List<TimetableSubject>> timetableDays;
-  final int i;
+
+  /// Precomputed via `buildDisplayBlocksForDay` for this day, once per
+  /// day column (not once per row) -- see student_timetable_better_view.dart.
+  final List<MergedLessonBlock> blocksForDay;
   final double width;
   final Map<String, dynamic> settings;
   final Function updateSettings;
@@ -322,12 +419,34 @@ class ListItem extends StatelessWidget {
     required this.iteration,
     required this.row,
     required this.data,
-    required this.timetableDays,
-    required this.i,
+    required this.blocksForDay,
     required this.width,
     required this.settings,
     required this.updateSettings,
   });
+
+  /// Resolves the real `TimeTableRow` (with clock times) for a single
+  /// hour number, using [TimeTableRow.lessonIndex] -- see the identical
+  /// helper (and its doc comment) on [ItemBlock].
+  TimeTableRow? _rowForStunde(int stunde) {
+    for (final r in data.hours) {
+      if (r.type == TimeTableRowType.lesson && r.lessonIndex == stunde) {
+        return r;
+      }
+    }
+    return null;
+  }
+
+  /// A block's real start/end clock time, resolved via [_rowForStunde].
+  /// `null` if either end of the block's `stunden` range isn't found in
+  /// [data.hours] (shouldn't normally happen -- defensive, not silent:
+  /// callers skip blocks this returns null for rather than guessing).
+  ({SphTimeOfDay start, SphTimeOfDay end})? _timesFor(MergedLessonBlock block) {
+    final startRow = _rowForStunde(block.startStunde);
+    final endRow = _rowForStunde(block.endStunde);
+    if (startRow == null || endRow == null) return null;
+    return (start: startRow.startTime, end: endRow.endTime);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -343,26 +462,33 @@ class ListItem extends StatelessWidget {
 
     double horizontalOffset = 0;
 
-    final List<TimetableSubject> timetable = timetableDays[i];
-    List<TimetableSubject> subjects = timetable.where((element) {
-      return element.startTime == row.startTime;
-    }).toList();
+    // Blocks that start exactly at this row. Only lesson rows have a
+    // meaningful lessonIndex to match against (pause rows use -1, which
+    // no block.startStunde ever equals), matching the original
+    // startTime-based check's behaviour for pause rows.
+    final blocksHere = row.type == TimeTableRowType.lesson
+        ? blocksForDay.where((b) => b.startStunde == row.lessonIndex).toList()
+        : const <MergedLessonBlock>[];
 
-    List<TimetableSubject> subjectsInRow = timetable.where((element) {
-      return row.startTime >= element.startTime &&
-          row.endTime <= element.endTime;
+    // Blocks "in progress" during this row's time span.
+    final blocksInRow = blocksForDay.where((b) {
+      final times = _timesFor(b);
+      if (times == null) return false;
+      return row.startTime >= times.start && row.endTime <= times.end;
     }).toList();
 
     // For pause rows, return a single Positioned widget
     if (row.type == TimeTableRowType.pause) {
       bool hidePause = false;
-      for (var subject in subjectsInRow) {
+      for (var block in blocksInRow) {
+        final times = _timesFor(block);
+        if (times == null) continue;
         int numPauses = data.hours
             .where(
               (element) =>
                   element.type == TimeTableRowType.pause &&
-                  element.startTime >= subject.startTime &&
-                  element.endTime <= subject.endTime,
+                  element.startTime >= times.start &&
+                  element.endTime <= times.end,
             )
             .length;
         if (numPauses > 0) {
@@ -385,8 +511,9 @@ class ListItem extends StatelessWidget {
       }
     }
 
-    // If no subject, return an empty Positioned widget with a pre-determined height (or 0 height)
-    if (subjects.isEmpty || row.type == TimeTableRowType.pause) {
+    // If no block starts here, return an empty Positioned widget with a
+    // pre-determined height (or 0 height)
+    if (blocksHere.isEmpty || row.type == TimeTableRowType.pause) {
       return ItemBlock.empty(
         height: 0,
         offset: verticalOffset,
@@ -397,62 +524,72 @@ class ListItem extends StatelessWidget {
       );
     }
 
-    // Determine horizontal space: calculate max overlapping subjects
-    int maxSubjectsInRow = 0;
-    for (var subject in subjects) {
-      int maxSubjects = timetable.where((element) {
-        return element.startTime >= subject.startTime &&
-            element.startTime < subject.endTime;
+    // Determine horizontal space: calculate max overlapping blocks
+    int maxBlocksInRow = 0;
+    for (var block in blocksHere) {
+      final times = _timesFor(block);
+      if (times == null) continue;
+      int overlapping = blocksForDay.where((other) {
+        final otherTimes = _timesFor(other);
+        if (otherTimes == null) return false;
+        return otherTimes.start >= times.start && otherTimes.start < times.end;
       }).length;
-      if (maxSubjects > maxSubjectsInRow) {
-        maxSubjectsInRow = maxSubjects;
+      if (overlapping > maxBlocksInRow) {
+        maxBlocksInRow = overlapping;
       }
     }
 
-    subjectsInRow.sort((a, b) {
-      return a.startTime.compareTo(b.startTime);
+    blocksInRow.sort((a, b) {
+      final ta = _timesFor(a);
+      final tb = _timesFor(b);
+      if (ta == null || tb == null) return 0;
+      return ta.start.compareTo(tb.start);
     });
 
     return SizedBox(
       width: width,
       child: Stack(
         children: [
-          for (var subject in subjects)
+          for (var block in blocksHere)
             Builder(
               builder: (context) {
-                int indexInRow = subjectsInRow.indexOf(subject);
-                int maxNum = max(maxSubjectsInRow, subjectsInRow.length);
+                int indexInRow = blocksInRow.indexOf(block);
+                int maxNum = max(maxBlocksInRow, blocksInRow.length);
 
                 double hOffset = (width / maxNum) * indexInRow;
 
-                int numPauses = data.hours
-                    .where(
-                      (element) =>
-                          element.type == TimeTableRowType.pause &&
-                          element.startTime >= subject.startTime &&
-                          element.endTime <= subject.endTime,
-                    )
-                    .length;
+                final times = _timesFor(block);
+                int numPauses = times == null
+                    ? 0
+                    : data.hours
+                          .where(
+                            (element) =>
+                                element.type == TimeTableRowType.pause &&
+                                element.startTime >= times.start &&
+                                element.endTime <= times.end,
+                          )
+                          .length;
 
                 return ItemBlock(
-                  subject: subject,
+                  block: block,
+                  data: data,
                   height:
-                      itemHeight * subject.duration +
-                      ((subject.duration - 1) * 8) +
+                      itemHeight * block.stunden.length +
+                      ((block.stunden.length - 1) * 8) +
                       (numPauses * (pauseHeight + 8)),
-                  color: TimeTableHelper.getColorForLesson(settings, subject),
+                  color: TimeTableHelper.getColorForLesson(settings, block),
                   offset: verticalOffset,
-                  // Calculate left offset based on subject index and max overlapping subjects
+                  // Calculate left offset based on block index and max overlapping blocks
                   hOffset: hOffset + (maxNum >= 2 ? 0 : 0),
                   width: (width / maxNum) - (maxNum >= 2 ? 2 : 0),
                   settings: settings,
                   updateSettings: updateSettings,
-                  // Only show the color of the subject to save resources
+                  // Only show the color of the block to save resources
                   onlyColor:
-                      subjectsInRow.length > 3 &&
+                      blocksInRow.length > 3 &&
                       !(settings['single-day'] ?? false),
                   disableAction:
-                      subjectsInRow.length > 6 &&
+                      blocksInRow.length > 6 &&
                       !(settings['single-day'] ?? false),
                 );
               },
