@@ -20,16 +20,32 @@
 }
 
 /// Initial week index from settings / current school week badge.
+///
+/// On a Saturday or Sunday, the current school week is effectively over,
+/// so if an A/B-week rotation exists ([uniqueBadges] has more than one
+/// entry), this shows *next* week's badge instead of the one that was
+/// active during the week that just ended. [now] is injectable for
+/// testing; defaults to the real current time.
 int initialTimetableWeekIndex({
   required bool showByWeek,
   required String? weekBadge,
   required List<String> uniqueBadges,
+  DateTime? now,
 }) {
   if (showByWeek || weekBadge == null || weekBadge.isEmpty) {
     return 0;
   }
   final idx = uniqueBadges.indexOf(weekBadge);
-  return idx >= 0 ? idx + 1 : 0;
+  if (idx < 0) return 0;
+
+  final today = now ?? DateTime.now();
+  final isWeekend =
+      today.weekday == DateTime.saturday || today.weekday == DateTime.sunday;
+  if (isWeekend && uniqueBadges.length > 1) {
+    final nextIdx = (idx + 1) % uniqueBadges.length;
+    return nextIdx + 1;
+  }
+  return idx + 1;
 }
 
 /// True when the timetable has hour rows but no visible day columns after
