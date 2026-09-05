@@ -83,6 +83,86 @@ void main() {
         0,
       );
     });
+
+    test('weekday (not weekend) uses the current badge as-is', () {
+      final monday = DateTime(2026, 9, 7); // a Monday
+      expect(
+        initialTimetableWeekIndex(
+          showByWeek: false,
+          weekBadge: 'A',
+          uniqueBadges: const ['A', 'B'],
+          now: monday,
+        ),
+        1,
+      );
+    });
+
+    test('Saturday with A/B rotation shows the next badge', () {
+      final saturday = DateTime(2026, 9, 5);
+      expect(saturday.weekday, DateTime.saturday);
+      expect(
+        initialTimetableWeekIndex(
+          showByWeek: false,
+          weekBadge: 'A',
+          uniqueBadges: const ['A', 'B'],
+          now: saturday,
+        ),
+        2, // 'B'
+      );
+    });
+
+    test('Sunday with A/B rotation shows the next badge', () {
+      final sunday = DateTime(2026, 9, 6);
+      expect(sunday.weekday, DateTime.sunday);
+      expect(
+        initialTimetableWeekIndex(
+          showByWeek: false,
+          weekBadge: 'A',
+          uniqueBadges: const ['A', 'B'],
+          now: sunday,
+        ),
+        2, // 'B'
+      );
+    });
+
+    test('weekend next-badge wraps around from the last badge', () {
+      final saturday = DateTime(2026, 9, 5);
+      expect(
+        initialTimetableWeekIndex(
+          showByWeek: false,
+          weekBadge: 'B',
+          uniqueBadges: const ['A', 'B'],
+          now: saturday,
+        ),
+        1, // wraps back to 'A'
+      );
+    });
+
+    test('weekend with only a single badge (no rotation) stays put', () {
+      final saturday = DateTime(2026, 9, 5);
+      expect(
+        initialTimetableWeekIndex(
+          showByWeek: false,
+          weekBadge: 'A',
+          uniqueBadges: const ['A'],
+          now: saturday,
+        ),
+        1, // nothing to switch to
+      );
+    });
+
+    test('weekend with no badge rotation at all (uniqueBadges empty) returns 0', () {
+      final saturday = DateTime(2026, 9, 5);
+      expect(
+        initialTimetableWeekIndex(
+          showByWeek: false,
+          weekBadge: 'A',
+          uniqueBadges: const [],
+          now: saturday,
+        ),
+        0,
+      );
+    });
   });
 
   group('isTimetableVisuallyEmpty', () {
