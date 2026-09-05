@@ -50,6 +50,26 @@ class _StudentTimetableBetterViewState
   int currentWeekIndex = -1;
 
   @override
+  void initState() {
+    super.initState();
+    // Feature 2 (Stundenplan-Overlay): kick off a substitution fetch once
+    // if we don't already have data -- the substitutions parser is a
+    // keepAlive singleton shared with the Vertretungsplan screen, so this
+    // is a no-op if the user already visited it this session. Substitution
+    // overlay is a "nice to have" secondary data source for this screen:
+    // if it's still loading/errors, TimeTableView just renders without
+    // overlay (see the StreamBuilder around it in build()), never blocks
+    // or fails the main timetable render.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final substitutionsParser = ref.read(substitutionsParserProvider);
+      if (substitutionsParser.latestResponse?.status != FetcherStatus.done) {
+        substitutionsParser.fetchData();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider).asData?.value;
     if (session == null) {
@@ -224,16 +244,29 @@ class _StudentTimetableBetterViewState
               );
             }
 
+            final substitutionsParser = ref.watch(substitutionsParserProvider);
+
             return Scaffold(
               appBar: appBar,
               body: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: TimeTableView(
-                  data: data,
-                  timetable: timetable,
-                  settings: settings,
-                  updateSettings: updateSettings,
-                  refresh: refresh,
+                child: StreamBuilder<FetcherResponse<SubstitutionPlan>>(
+                  stream: substitutionsParser.stream,
+                  initialData: substitutionsParser.latestResponse,
+                  builder: (context, subSnapshot) {
+                    final substitutionPlan =
+                        subSnapshot.data?.status == FetcherStatus.done
+                        ? subSnapshot.data?.content
+                        : null;
+                    return TimeTableView(
+                      data: data,
+                      timetable: timetable,
+                      settings: settings,
+                      updateSettings: updateSettings,
+                      refresh: refresh,
+                      substitutionPlan: substitutionPlan,
+                    );
+                  },
                 ),
               ),
               floatingActionButton: timetable.planForOwn != null
@@ -279,6 +312,21 @@ class TimeTableView extends StatelessWidget {
   final Function updateSettings;
   final Future<void> Function()? refresh;
 
+  /// Feature 2 (Stundenplan-Overlay): the currently fetched substitution
+  /// plan, or `null` if it hasn't loaded yet / errored / isn't available.
+  /// `null` just means "no overlay data this render" -- never blocks or
+  /// changes the plain-timetable rendering path.
+  final SubstitutionPlan? substitutionPlan;
+
+  /// Real calendar date of this week's Monday. The timetable always shows
+  /// the current week (Mon-Fri), so this is *not* affected by
+  /// currentWeekIndex (that only switches between A/B-week badge
+  /// filters, not to a different calendar week).
+  static DateTime mondayOfThisWeek() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day - (now.weekday - 1));
+  }
+
   double calculateColumnHeight(List<TimeTableRow> rows) {
     double totalHeight = 0;
     for (var row in rows) {
@@ -316,6 +364,7 @@ class TimeTableView extends StatelessWidget {
     required this.settings,
     required this.updateSettings,
     this.refresh,
+    this.substitutionPlan,
   });
 
   @override
@@ -477,11 +526,9 @@ class TimeTableView extends StatelessWidget {
               ),
               child: Builder(
                 builder: (context) {
-                  var today = DateTime.now().startOfWeek;
-                  var monday = DateTime(
-                    today.year,
-                    today.month,
-                    today.day - (today.weekday - 1) + 7,
+                  final monday = mondayOfThisWeek();
+                  final date = monday.add(
+                    Duration(days: data.weekdayIndices[i]),
                   );
 
                   return Column(
@@ -490,11 +537,11 @@ class TimeTableView extends StatelessWidget {
                       Text(
                         DateFormat.E(
                           Localizations.localeOf(context).languageCode,
-                        ).format(monday.add(Duration(days: i))),
+                        ).format(date),
                         textAlign: TextAlign.center,
                       ),
                       Text(
-                        monday.add(Duration(days: i)).format('dd.MM.'),
+                        date.format('dd.MM.'),
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 10),
                       ),
@@ -504,27 +551,52 @@ class TimeTableView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8.0),
-            SizedBox(
-              height: calculateColumnHeight(data.hours),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Stack(
-                    children: [
-                      for (var (index, row) in data.hours.indexed)
-                        ListItem(
-                          iteration: index,
-                          row: row,
-                          data: data,
-                          timetableDays: data.timetableDays,
-                          i: i,
-                          width: constraints.maxWidth,
-                          settings: settings,
-                          updateSettings: updateSettings,
-                        ),
-                    ],
-                  );
-                },
-              ),
+            Builder(
+              builder: (context) {
+                // Feature 2 (Stundenplan-Overlay): resolve this column's
+                // real calendar date, find that date's substitutions (if
+                // the plan has loaded and covers it), then run the full
+                // decompose -> match -> merge pipeline once for this day.
+                // `date`/`weekdayIndices[i]` mirror the header above --
+                // both must agree on which weekday column `i` actually is.
+                final date = mondayOfThisWeek().add(
+                  Duration(days: data.weekdayIndices[i]),
+                );
+                final dateStr = date.format('dd.MM.yyyy');
+                final substitutionsForDay =
+                    substitutionPlan?.days
+                        .where((d) => d.parsedDate == dateStr)
+                        .expand((d) => d.substitutions)
+                        .toList() ??
+                    const <Substitution>[];
+
+                final blocksForDay = buildDisplayBlocksForDay(
+                  subjects: data.timetableDays[i],
+                  substitutions: substitutionsForDay,
+                );
+
+                return SizedBox(
+                  height: calculateColumnHeight(data.hours),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Stack(
+                        children: [
+                          for (var (index, row) in data.hours.indexed)
+                            ListItem(
+                              iteration: index,
+                              row: row,
+                              data: data,
+                              blocksForDay: blocksForDay,
+                              width: constraints.maxWidth,
+                              settings: settings,
+                              updateSettings: updateSettings,
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                );
+              },
             ),
           ],
         ),
