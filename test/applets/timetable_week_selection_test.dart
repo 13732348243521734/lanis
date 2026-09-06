@@ -63,13 +63,28 @@ void main() {
     });
 
     test('known weekBadge maps to 1-based index', () {
+      final aWeekday = DateTime(2026, 9, 7); // a Monday
       expect(
         initialTimetableWeekIndex(
           showByWeek: false,
           weekBadge: 'B',
           uniqueBadges: const ['A', 'B'],
+          now: aWeekday,
         ),
         2,
+      );
+    });
+
+    test('unknown weekBadge does not produce negative/out-of-range index on a weekend either', () {
+      final aSaturday = DateTime(2026, 9, 5);
+      expect(
+        initialTimetableWeekIndex(
+          showByWeek: false,
+          weekBadge: 'Z',
+          uniqueBadges: const ['A', 'B'],
+          now: aSaturday,
+        ),
+        0,
       );
     });
 
