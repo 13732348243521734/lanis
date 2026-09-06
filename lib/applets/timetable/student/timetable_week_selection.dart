@@ -19,6 +19,14 @@
   );
 }
 
+/// True for Saturday/Sunday. Shared by [initialTimetableWeekIndex] (which
+/// week's A/B badge to show) and [mondayOfDisplayedWeek] (which
+/// calendar week's dates to show) so both stay in sync -- both must agree
+/// on "we're past this week, show next week" or the header dates and the
+/// displayed lesson content would visibly disagree.
+bool isWeekend(DateTime now) =>
+    now.weekday == DateTime.saturday || now.weekday == DateTime.sunday;
+
 /// Initial week index from settings / current school week badge.
 ///
 /// On a Saturday or Sunday, the current school week is effectively over,
@@ -39,13 +47,32 @@ int initialTimetableWeekIndex({
   if (idx < 0) return 0;
 
   final today = now ?? DateTime.now();
-  final isWeekend =
-      today.weekday == DateTime.saturday || today.weekday == DateTime.sunday;
-  if (isWeekend && uniqueBadges.length > 1) {
+  if (isWeekend(today) && uniqueBadges.length > 1) {
     final nextIdx = (idx + 1) % uniqueBadges.length;
     return nextIdx + 1;
   }
   return idx + 1;
+}
+
+/// Monday of the week whose timetable is actually being displayed.
+///
+/// The timetable always shows the *current* week's template (Mon-Fri),
+/// except on a Saturday/Sunday (see [isWeekend]) where it shows next
+/// week's A/B badge instead (see [initialTimetableWeekIndex]) -- so the
+/// calendar dates used for header labels and for correlating a day's
+/// substitutions must advance by 7 days too, or they'd visibly disagree
+/// with the lesson content being shown. [now] is injectable for testing;
+/// defaults to the real current time.
+DateTime mondayOfDisplayedWeek({DateTime? now}) {
+  final today = now ?? DateTime.now();
+  final thisWeeksMonday = DateTime(
+    today.year,
+    today.month,
+    today.day - (today.weekday - 1),
+  );
+  return isWeekend(today)
+      ? thisWeeksMonday.add(const Duration(days: 7))
+      : thisWeeksMonday;
 }
 
 /// True when the timetable has hour rows but no visible day columns after

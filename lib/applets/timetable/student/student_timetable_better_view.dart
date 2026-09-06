@@ -322,11 +322,6 @@ class TimeTableView extends StatelessWidget {
   /// the current week (Mon-Fri), so this is *not* affected by
   /// currentWeekIndex (that only switches between A/B-week badge
   /// filters, not to a different calendar week).
-  static DateTime mondayOfThisWeek() {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day - (now.weekday - 1));
-  }
-
   double calculateColumnHeight(List<TimeTableRow> rows) {
     double totalHeight = 0;
     for (var row in rows) {
@@ -530,7 +525,7 @@ class TimeTableView extends StatelessWidget {
               ),
               child: Builder(
                 builder: (context) {
-                  final monday = mondayOfThisWeek();
+                  final monday = mondayOfDisplayedWeek();
                   final date = monday.add(
                     Duration(days: data.weekdayIndices[i]),
                   );
@@ -563,7 +558,7 @@ class TimeTableView extends StatelessWidget {
                 // decompose -> match -> merge pipeline once for this day.
                 // `date`/`weekdayIndices[i]` mirror the header above --
                 // both must agree on which weekday column `i` actually is.
-                final date = mondayOfThisWeek().add(
+                final date = mondayOfDisplayedWeek().add(
                   Duration(days: data.weekdayIndices[i]),
                 );
                 final dateStr = date.format('dd.MM.yyyy');

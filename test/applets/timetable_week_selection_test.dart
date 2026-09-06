@@ -243,4 +243,38 @@ void main() {
       isTrue,
     );
   });
+  group('isWeekend', () {
+    test('Saturday and Sunday are weekend', () {
+      expect(isWeekend(DateTime(2026, 9, 5)), isTrue); // Saturday
+      expect(isWeekend(DateTime(2026, 9, 6)), isTrue); // Sunday
+    });
+
+    test('Monday through Friday are not weekend', () {
+      for (var day = 7; day <= 11; day++) {
+        expect(isWeekend(DateTime(2026, 9, day)), isFalse);
+      }
+    });
+  });
+
+  group('mondayOfDisplayedWeek', () {
+    test("on a weekday, returns this week's Monday", () {
+      final wednesday = DateTime(2026, 9, 9);
+      expect(mondayOfDisplayedWeek(now: wednesday), DateTime(2026, 9, 7));
+    });
+
+    test("on Saturday, returns next week's Monday, not this week's", () {
+      final saturday = DateTime(2026, 9, 5);
+      expect(mondayOfDisplayedWeek(now: saturday), DateTime(2026, 9, 7));
+    });
+
+    test("on Sunday, returns next week's Monday, not this week's", () {
+      final sunday = DateTime(2026, 9, 6);
+      expect(mondayOfDisplayedWeek(now: sunday), DateTime(2026, 9, 7));
+    });
+
+    test('on the Monday itself, returns that same Monday', () {
+      final monday = DateTime(2026, 9, 7);
+      expect(mondayOfDisplayedWeek(now: monday), DateTime(2026, 9, 7));
+    });
+  });
 }
