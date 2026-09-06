@@ -405,25 +405,29 @@ class ItemBlock extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Wrap(
-                              runAlignment: WrapAlignment.spaceBetween,
-                              alignment: WrapAlignment.spaceBetween,
-                              spacing: height % itemHeight >= 1.99
-                                  ? 99999
-                                  : 8.0,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _overlayableLine(
-                                  block!.name,
-                                  null,
-                                  textStyle,
-                                  strike: isEva,
-                                ),
-                                if (block!.lehrer != null)
-                                  _overlayableLine(
-                                    block!.lehrer!,
-                                    isEva ? null : overlay?.vertreter,
+                                Expanded(
+                                  flex: 2,
+                                  child: _overlayableLine(
+                                    block!.name,
+                                    null,
                                     textStyle,
                                     strike: isEva,
+                                  ),
+                                ),
+                                if (block!.lehrer != null)
+                                  Flexible(
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: _overlayableLine(
+                                        block!.lehrer!,
+                                        isEva ? null : overlay?.vertreter,
+                                        textStyle,
+                                        strike: isEva,
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
