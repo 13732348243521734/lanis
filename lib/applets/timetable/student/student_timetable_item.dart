@@ -531,70 +531,68 @@ class ListItem extends StatelessWidget {
         ? blocksForDay.where((b) => b.startStunde == row.lessonIndex).toList()
         : const <MergedLessonBlock>[];
 
-    // Blocks "in progress" during this row's time span.
+    // Blocks "in progress" during this row's time span (used below for
+    // parallel-lesson lane splitting).
     final blocksInRow = blocksForDay.where((b) {
       final times = _timesFor(b);
       if (times == null) return false;
       return row.startTime >= times.start && row.endTime <= times.end;
     }).toList();
 
-    // For pause rows, return a single Positioned widget
-    if (row.type == TimeTableRowType.pause) {
-      bool hidePause = false;
-      for (var block in blocksInRow) {
-        final times = _timesFor(block);
-        if (times == null) continue;
-        int numPauses = data.hours
-            .where(
-              (element) =>
-                  element.type == TimeTableRowType.pause &&
-                  element.startTime >= times.start &&
-                  element.endTime <= times.end,
-            )
-            .length;
-        if (numPauses > 0) {
-          hidePause = true;
-          break;
-        }
-      }
-
-      // Also hide this pause if nothing is scheduled for the rest of the
-      // day -- a break before the school day is effectively over shouldn't
-      // still be shown.
-      if (!hidePause &&
-          shouldHideTrailingPause(
-            pauseEnd: row.endTime,
+    // Break rows (real pauses that aren't suppressed, and sandwiched free
+    // periods) are handled together so consecutive ones -- e.g. a real
+    // pause immediately followed by a free period with no lesson between
+    // them -- merge into a single taller box instead of stacking as
+    // separate same-height boxes.
+    if (isBreakRow(row: row, blocksForDay: blocksForDay, rowForStunde: _rowForStunde)) {
+      final previousRow = iteration > 0 ? data.hours[iteration - 1] : null;
+      final previousIsBreak =
+          previousRow != null &&
+          isBreakRow(
+            row: previousRow,
             blocksForDay: blocksForDay,
             rowForStunde: _rowForStunde,
-          )) {
-        hidePause = true;
-      }
+          );
 
-      if (!hidePause) {
-        return ItemBlock(
-          height: pauseHeight,
-          width: width,
+      if (previousIsBreak) {
+        // Continuation of a break run whose box was already rendered at
+        // the row where the run started.
+        return ItemBlock.empty(
+          height: 0,
           offset: verticalOffset,
+          width: width,
           hOffset: horizontalOffset,
-          color: Theme.of(context).colorScheme.surfaceContainerHigh,
-          onlyColor: true,
-          settings: settings,
           updateSettings: updateSettings,
+          settings: settings,
         );
       }
-    }
 
-    // A subject-less lesson row, sandwiched between an earlier and a
-    // later lesson that day (e.g. a free period), gets the same
-    // "große Pause" visual as a real break instead of staying invisible.
-    if (row.type == TimeTableRowType.lesson &&
-        blocksHere.isEmpty &&
-        isSandwichedFreePeriod(
-          stunde: row.lessonIndex,
+      // Start of a break run: measure how many consecutive following rows
+      // are also break rows and render one box spanning all of them,
+      // matching how a real multi-hour MergedLessonBlock's height is
+      // computed (N rows of height H with 8px gaps = N*H + (N-1)*8).
+      double runHeight = row.type == TimeTableRowType.lesson
+          ? itemHeight
+          : pauseHeight;
+      var next = iteration + 1;
+      while (next < data.hours.length) {
+        final nextRow = data.hours[next];
+        final nextIsBreak = isBreakRow(
+          row: nextRow,
           blocksForDay: blocksForDay,
-        )) {
+          rowForStunde: _rowForStunde,
+        );
+        if (!nextIsBreak) break;
+        runHeight +=
+            (nextRow.type == TimeTableRowType.lesson
+                ? itemHeight
+                : pauseHeight) +
+            8;
+        next++;
+      }
+
       return ItemBlock(
-        height: itemHeight,
+        height: runHeight,
         width: width,
         offset: verticalOffset,
         hOffset: horizontalOffset,

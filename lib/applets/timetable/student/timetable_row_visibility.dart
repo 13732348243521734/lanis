@@ -43,3 +43,49 @@ bool isSandwichedFreePeriod({
   final hasLessonAfter = blocksForDay.any((block) => block.startStunde > stunde);
   return hasLessonBefore && hasLessonAfter;
 }
+
+/// Whether [row] renders as a "break" box at all -- a real pause that
+/// isn't hidden (not inside a spanning multi-hour block, and not a
+/// trailing pause with nothing scheduled afterwards, see
+/// [shouldHideTrailingPause]), or a sandwiched free period (see
+/// [isSandwichedFreePeriod]). `false` for an active lesson-block start, a
+/// lesson-block continuation row, or a suppressed pause.
+///
+/// Callable for *any* row in the day, not just the one currently being
+/// rendered -- this is what lets consecutive break rows be detected and
+/// merged into a single taller box instead of stacking as separate boxes
+/// with nothing (no lesson) between them.
+bool isBreakRow({
+  required TimeTableRow row,
+  required List<MergedLessonBlock> blocksForDay,
+  required TimeTableRow? Function(int stunde) rowForStunde,
+}) {
+  if (row.type == TimeTableRowType.pause) {
+    final insideSpanningBlock = blocksForDay.any((block) {
+      final startRow = rowForStunde(block.startStunde);
+      final endRow = rowForStunde(block.endStunde);
+      if (startRow == null || endRow == null) return false;
+      return row.startTime >= startRow.startTime && row.endTime <= endRow.endTime;
+    });
+    if (insideSpanningBlock) return false;
+
+    return !shouldHideTrailingPause(
+      pauseEnd: row.endTime,
+      blocksForDay: blocksForDay,
+      rowForStunde: rowForStunde,
+    );
+  }
+
+  if (row.type == TimeTableRowType.lesson) {
+    final hasBlockHere = blocksForDay.any(
+      (block) => block.startStunde == row.lessonIndex,
+    );
+    if (hasBlockHere) return false;
+    return isSandwichedFreePeriod(
+      stunde: row.lessonIndex,
+      blocksForDay: blocksForDay,
+    );
+  }
+
+  return false;
+}
