@@ -277,7 +277,7 @@ class ItemBlock extends StatelessWidget {
   /// of any other overlay field.
   Color? _overlayBackgroundColor(LessonOverlay? overlay) {
     if (overlay == null) return null;
-    if (overlay.isEva) return Colors.red.shade400;
+    if (overlay.isEva) return const Color(0xFFFF0000);
     if (overlay.substituteRaum != null) return Colors.orange.shade400;
     return null;
   }
@@ -286,6 +286,13 @@ class ItemBlock extends StatelessWidget {
   /// shown alongside (7.3: old teacher/room struck through, substitute
   /// shown next to it). With no [replacement] and no [strike], this is
   /// just a plain `Text` -- the common, non-overlaid case.
+  ///
+  /// The strikethrough line's own color is set explicitly to
+  /// [style.color] (the already contrast-computed black/white text
+  /// color for the current background) rather than relying on Flutter's
+  /// default decoration color, so the line itself always reads correctly
+  /// against red (EVA), orange (room change), or any curated/custom
+  /// subject color -- not just the text.
   Widget _overlayableLine(
     String original,
     String? replacement,
@@ -300,7 +307,10 @@ class ItemBlock extends StatelessWidget {
       children: [
         Text(
           original,
-          style: style.copyWith(decoration: TextDecoration.lineThrough),
+          style: style.copyWith(
+            decoration: TextDecoration.lineThrough,
+            decorationColor: style.color,
+          ),
           maxLines: 1,
         ),
         if (replacement != null) ...[
@@ -356,7 +366,7 @@ class ItemBlock extends StatelessWidget {
                                   flex: 2,
                                   child: _overlayableLine(
                                     block!.name,
-                                    null,
+                                    isEva ? 'EVA' : null,
                                     textStyle,
                                     strike: isEva,
                                   ),
