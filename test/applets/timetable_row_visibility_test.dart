@@ -137,4 +137,123 @@ void main() {
       expect(isSandwichedFreePeriod(stunde: 4, blocksForDay: blocksForDay), isTrue);
     });
   });
+  group('isBreakRow', () {
+    TimeTableRow pauseRow({required int startHour, int startMinute = 0, required int endHour, int endMinute = 0}) =>
+        TimeTableRow(
+          TimeTableRowType.pause,
+          SphTimeOfDay(hour: startHour, minute: startMinute),
+          SphTimeOfDay(hour: endHour, minute: endMinute),
+          'Pause',
+          -1,
+        );
+
+    TimeTableRow? rowForStundeAmong(List<TimeTableRow> rows, int stunde) {
+      for (final r in rows) {
+        if (r.type == TimeTableRowType.lesson && r.lessonIndex == stunde) return r;
+      }
+      return null;
+    }
+
+    test('a normal, non-hidden pause is a break row', () {
+      final lessonRows = [
+        _row(stunde: 1, startHour: 8),
+        _row(stunde: 2, startHour: 10),
+      ];
+      final pause = pauseRow(startHour: 8, startMinute: 45, endHour: 10);
+      expect(
+        isBreakRow(
+          row: pause,
+          blocksForDay: [_block(start: 1, end: 1), _block(start: 2, end: 2)],
+          rowForStunde: (s) => rowForStundeAmong(lessonRows, s),
+        ),
+        isTrue,
+      );
+    });
+
+    test('a pause inside a spanning double-period block is not a break row', () {
+      final lessonRows = [
+        _row(stunde: 3, startHour: 10),
+        _row(stunde: 4, startHour: 11),
+      ];
+      final pause = pauseRow(startHour: 10, startMinute: 45, endHour: 11);
+      expect(
+        isBreakRow(
+          row: pause,
+          blocksForDay: [_block(start: 3, end: 4)],
+          rowForStunde: (s) => rowForStundeAmong(lessonRows, s),
+        ),
+        isFalse,
+      );
+    });
+
+    test('a trailing pause with nothing scheduled afterwards is not a break row', () {
+      final lessonRows = [_row(stunde: 1, startHour: 8)];
+      final pause = pauseRow(startHour: 8, startMinute: 45, endHour: 9);
+      expect(
+        isBreakRow(
+          row: pause,
+          blocksForDay: [_block(start: 1, end: 1)],
+          rowForStunde: (s) => rowForStundeAmong(lessonRows, s),
+        ),
+        isFalse,
+      );
+    });
+
+    test('a lesson row with no block that is sandwiched is a break row', () {
+      final lessonRows = [
+        _row(stunde: 1, startHour: 8),
+        _row(stunde: 2, startHour: 9),
+        _row(stunde: 3, startHour: 10),
+      ];
+      expect(
+        isBreakRow(
+          row: lessonRows[1], // stunde 2, free
+          blocksForDay: [_block(start: 1, end: 1), _block(start: 3, end: 3)],
+          rowForStunde: (s) => rowForStundeAmong(lessonRows, s),
+        ),
+        isTrue,
+      );
+    });
+
+    test('a lesson row that starts a real block is not a break row', () {
+      final lessonRows = [_row(stunde: 1, startHour: 8)];
+      expect(
+        isBreakRow(
+          row: lessonRows[0],
+          blocksForDay: [_block(start: 1, end: 1)],
+          rowForStunde: (s) => rowForStundeAmong(lessonRows, s),
+        ),
+        isFalse,
+      );
+    });
+
+    test('a lesson row that is a continuation of an ongoing block is not a break row', () {
+      final lessonRows = [
+        _row(stunde: 3, startHour: 10),
+        _row(stunde: 4, startHour: 11),
+      ];
+      expect(
+        isBreakRow(
+          row: lessonRows[1], // stunde 4, covered by the 3-4 block
+          blocksForDay: [_block(start: 3, end: 4)],
+          rowForStunde: (s) => rowForStundeAmong(lessonRows, s),
+        ),
+        isFalse,
+      );
+    });
+
+    test('two consecutive break rows (pause then free period) both report true, enabling merging', () {
+      final lessonRows = [
+        _row(stunde: 1, startHour: 8),
+        _row(stunde: 2, startHour: 10), // free period, sandwiched
+        _row(stunde: 3, startHour: 11),
+      ];
+      final pause = pauseRow(startHour: 8, startMinute: 45, endHour: 10);
+      final blocksForDay = [_block(start: 1, end: 1), _block(start: 3, end: 3)];
+      TimeTableRow? lookup(int s) => rowForStundeAmong(lessonRows, s);
+
+      expect(isBreakRow(row: pause, blocksForDay: blocksForDay, rowForStunde: lookup), isTrue);
+      expect(isBreakRow(row: lessonRows[1], blocksForDay: blocksForDay, rowForStunde: lookup), isTrue);
+    });
+  });
 }
