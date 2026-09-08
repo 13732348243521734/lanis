@@ -12,6 +12,62 @@ import 'package:lanis/generated/l10n.dart';
 import 'package:lanis/utils/root_nav.dart';
 import 'package:lanis/utils/subject_colors.dart';
 
+/// Paints a repeating diagonal (45°) two-color stripe pattern across
+/// whatever size it's given, with a constant stripe width in logical
+/// pixels regardless of the target size -- so stripes look consistent
+/// whether the block is a single narrow lesson or a tall merged one,
+/// unlike a fraction-based gradient whose stripe thickness would vary
+/// with box size.
+class DiagonalStripesPainter extends CustomPainter {
+  final Color colorA;
+  final Color colorB;
+  final double stripeWidth;
+
+  const DiagonalStripesPainter({
+    required this.colorA,
+    required this.colorB,
+    this.stripeWidth = 8,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final paintA = Paint()..color = colorA;
+    final paintB = Paint()..color = colorB;
+
+    // Shear each stripe by size.height along x so it reads as a 45°
+    // diagonal; start far enough to the left / extend far enough right
+    // that the sheared band still fully covers the box at any aspect
+    // ratio.
+    final span = size.width + size.height;
+    var x = -span;
+    var i = 0;
+    while (x < span) {
+      final path = Path()
+        ..moveTo(x, 0)
+        ..lineTo(x + stripeWidth, 0)
+        ..lineTo(x + stripeWidth - size.height, size.height)
+        ..lineTo(x - size.height, size.height)
+        ..close();
+      canvas.drawPath(path, i.isEven ? paintA : paintB);
+      x += stripeWidth;
+      i++;
+    }
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant DiagonalStripesPainter oldDelegate) {
+    return colorA != oldDelegate.colorA ||
+        colorB != oldDelegate.colorB ||
+        stripeWidth != oldDelegate.stripeWidth;
+  }
+}
+
+
 class ItemBlock extends StatelessWidget {
   final MergedLessonBlock? block;
   final TimeTableData? data;
@@ -267,6 +323,11 @@ class ItemBlock extends StatelessWidget {
                     AppLocalizations.of(context).timetableEva,
                     Icons.warning_amber_outlined,
                   ),
+                if (overlay?.isCancelled == true)
+                  modalSheetItem(
+                    AppLocalizations.of(context).timetableCancelled,
+                    Icons.event_busy_outlined,
+                  ),
                 if (overlay?.vertreter != null)
                   modalSheetItem(
                     AppLocalizations.of(
@@ -310,31 +371,53 @@ class ItemBlock extends StatelessWidget {
     );
   }
 
-  Widget _colorContainer(double width, {Widget? child, Color? overrideColor}) {
+  Widget _colorContainer(double width, {Widget? child, Color? stripeColor}) {
+    final baseColor = color ?? Colors.transparent;
+    final borderColor = stripeColor ?? baseColor;
+
     return Container(
       width: width,
       height: height,
       clipBehavior: Clip.hardEdge, // Clips any overflow, useful for the y axis
       decoration: BoxDecoration(
-        border: Border.all(
-          color: overrideColor ?? color ?? Colors.transparent,
-          width: min(1, width / 3),
-        ),
-        color: overrideColor ?? color ?? Colors.transparent,
+        border: Border.all(color: borderColor, width: min(1, width / 3)),
         borderRadius: BorderRadius.circular(8.0),
       ),
-      padding: EdgeInsets.all(4.0),
-      child: child,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          stripeColor != null
+              ? CustomPaint(
+                  painter: DiagonalStripesPainter(
+                    colorA: baseColor,
+                    colorB: stripeColor,
+                  ),
+                )
+              : ColoredBox(color: baseColor),
+          Padding(padding: const EdgeInsets.all(4.0), child: child),
+        ],
+      ),
     );
   }
 
-  /// Feature plan 7.3 display rules. EVA takes priority: when set, the
-  /// whole block renders red with everything struck through, regardless
-  /// of any other overlay field.
-  Color? _overlayBackgroundColor(LessonOverlay? overlay) {
+  /// Feature plan 7.3 display rules, as a diagonal-stripe pattern
+  /// (subject color + a fixed signal color) rather than a flat override
+  /// color -- readable without relying on color perception alone (e.g.
+  /// for red/green color blindness), and still shows the subject's own
+  /// color so the block stays identifiable at a glance.
+  ///
+  /// EVA and a cancelled lesson ("Entfall") both stripe red -- they're
+  /// both "this lesson effectively isn't happening as planned" states,
+  /// just with different causes; see [LessonOverlay.isEva] /
+  /// [LessonOverlay.isCancelled]. Any other active change (a substitute
+  /// teacher and/or a room change) stripes orange. `null` means no
+  /// stripe -- the plain subject color renders as before.
+  Color? _stripeSignalColor(LessonOverlay? overlay) {
     if (overlay == null) return null;
-    if (overlay.isEva) return const Color(0xFFFF0000);
-    if (overlay.substituteRaum != null) return Colors.orange.shade400;
+    if (overlay.isEva || overlay.isCancelled) return const Color(0xFFFF0000);
+    if (overlay.vertreter != null || overlay.substituteRaum != null) {
+      return Colors.orange.shade400;
+    }
     return null;
   }
 
@@ -356,22 +439,37 @@ class ItemBlock extends StatelessWidget {
     bool strike = false,
   }) {
     if (replacement == null && !strike) {
-      return Text(original, style: style, maxLines: 1);
+      return Text(
+        original,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
     }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          original,
-          style: style.copyWith(
-            decoration: TextDecoration.lineThrough,
-            decorationColor: style.color,
+        Flexible(
+          child: Text(
+            original,
+            style: style.copyWith(
+              decoration: TextDecoration.lineThrough,
+              decorationColor: style.color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 1,
         ),
         if (replacement != null) ...[
           const SizedBox(width: 4),
-          Flexible(child: Text(replacement, style: style, maxLines: 1)),
+          Flexible(
+            child: Text(
+              replacement,
+              style: style,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ],
     );
@@ -380,18 +478,30 @@ class ItemBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final overlay = block?.overlay;
-    final overrideColor = _overlayBackgroundColor(overlay);
-    final effectiveColor = overrideColor ?? color;
+    final stripeColor = _stripeSignalColor(overlay);
     final isEva = overlay?.isEva == true;
+    final isCancelled = overlay?.isCancelled == true;
+    // Both EVA and a cancelled lesson strike everything through -- see
+    // _stripeSignalColor's doc comment for why they share treatment.
+    final isFullyStruck = isEva || isCancelled;
+    final overlayLabel = isEva ? 'EVA' : (isCancelled ? 'Entfällt' : null);
 
-    TextStyle textStyle = TextStyle(
-      fontSize: 12,
-      color: effectiveColor != null
-          ? effectiveColor.computeLuminance() > 0.5
-                ? Colors.black
-                : Colors.white
-          : null,
-    );
+    // Striped backgrounds alternate between the subject's own (arbitrary,
+    // curated/hash-based) color and a fixed signal color (red/orange).
+    // Rather than computing contrast against two different colors, black
+    // is used unconditionally when striped -- reads acceptably against
+    // both typical subject colors and red/orange, matching common
+    // hazard-stripe conventions (e.g. black-on-yellow warning tape).
+    final textStyle = stripeColor != null
+        ? const TextStyle(fontSize: 12, color: Colors.black)
+        : TextStyle(
+            fontSize: 12,
+            color: color != null
+                ? (color!.computeLuminance() > 0.5
+                      ? Colors.black
+                      : Colors.white)
+                : null,
+          );
 
     double calcWidth = max(
       1,
@@ -407,7 +517,7 @@ class ItemBlock extends StatelessWidget {
               onTap: block != null ? () => showSubject(context) : null,
               child: _colorContainer(
                 calcWidth,
-                overrideColor: overrideColor,
+                stripeColor: stripeColor,
                 child: onlyColor
                     ? SizedBox()
                     : (!onlyColor && block != null)
@@ -422,9 +532,9 @@ class ItemBlock extends StatelessWidget {
                                   flex: 2,
                                   child: _overlayableLine(
                                     block!.name,
-                                    isEva ? 'EVA' : null,
+                                    overlayLabel,
                                     textStyle,
-                                    strike: isEva,
+                                    strike: isFullyStruck,
                                   ),
                                 ),
                                 if (block!.lehrer != null)
@@ -433,9 +543,9 @@ class ItemBlock extends StatelessWidget {
                                       alignment: Alignment.centerRight,
                                       child: _overlayableLine(
                                         block!.lehrer!,
-                                        isEva ? null : overlay?.vertreter,
+                                        isFullyStruck ? null : overlay?.vertreter,
                                         textStyle,
-                                        strike: isEva,
+                                        strike: isFullyStruck,
                                       ),
                                     ),
                                   ),
@@ -444,9 +554,9 @@ class ItemBlock extends StatelessWidget {
                             if (block!.raum != null)
                               _overlayableLine(
                                 block!.raum!,
-                                isEva ? null : overlay?.substituteRaum,
+                                isFullyStruck ? null : overlay?.substituteRaum,
                                 textStyle,
-                                strike: isEva,
+                                strike: isFullyStruck,
                               ),
                           ],
                         ),

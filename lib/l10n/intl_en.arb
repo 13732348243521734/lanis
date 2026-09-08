@@ -329,6 +329,7 @@
   "timetableWeek": "{week}-Week",
   "timetableColorSuggestions": "Suggestions",
   "timetableEva": "Independent work (EVA)",
+  "timetableCancelled": "Cancelled",
   "timetableSubstituteTeacher": "Substitute: {name}",
   "timetableSubstituteRoom": "Substitute room: {room}",
   "contributors": "Contributors",
