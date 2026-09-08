@@ -284,6 +284,7 @@
   "timetableAllWeeks": "Gesamtplan",
   "timetableWeek": "{week}-Woche",
   "timetableEva": "Eigenverantwortliches Arbeiten (EVA)",
+  "timetableCancelled": "Fällt aus",
   "timetableSubstituteTeacher": "Vertretung: {name}",
   "timetableSubstituteRoom": "Vertretungsraum: {room}",
   "dateWithHours": "{date}, {hours} Stunde",

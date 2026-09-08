@@ -34,6 +34,19 @@ Future<void> _pumpBlock(WidgetTester tester, MergedLessonBlock block) async {
   );
 }
 
+/// The DiagonalStripesPainter actually driving one of the CustomPaint
+/// widgets in the tree, or null if none is striped (plain ColoredBox
+/// background instead).
+DiagonalStripesPainter? _findStripesPainter(WidgetTester tester) {
+  final customPaints = tester.widgetList<CustomPaint>(find.byType(CustomPaint));
+  for (final cp in customPaints) {
+    if (cp.painter is DiagonalStripesPainter) {
+      return cp.painter as DiagonalStripesPainter;
+    }
+  }
+  return null;
+}
+
 void main() {
   tearDown(LanisClient.reset);
 
@@ -49,7 +62,7 @@ void main() {
     expect(find.textContaining('EVA'), findsOneWidget);
   });
 
-  testWidgets('EVA overlay uses pure red (0xFFFF0000) as the block background', (
+  testWidgets('EVA overlay stripes with pure red (0xFFFF0000) as one of the two colors', (
     tester,
   ) async {
     await _pumpBlock(
@@ -57,29 +70,39 @@ void main() {
       _block(overlay: const LessonOverlay(isEva: true)),
     );
 
-    final container = tester.widget<Container>(
-      find
-          .descendant(
-            of: find.byType(ItemBlock),
-            matching: find.byType(Container),
-          )
-          .first,
+    final painter = _findStripesPainter(tester);
+    expect(painter, isNotNull);
+    expect(
+      painter!.colorA == const Color(0xFFFF0000) ||
+          painter.colorB == const Color(0xFFFF0000),
+      isTrue,
     );
-    final decoration = container.decoration as BoxDecoration;
-    expect(decoration.color, const Color(0xFFFF0000));
   });
 
-  testWidgets('no overlay renders normally without crashing or showing EVA', (
+  testWidgets('cancelled ("Entfall") overlay shows "Entfällt" text and stripes red', (
     tester,
   ) async {
-    await _pumpBlock(tester, _block());
+    await _pumpBlock(
+      tester,
+      _block(overlay: const LessonOverlay(isCancelled: true)),
+    );
 
     expect(tester.takeException(), isNull);
+    expect(find.textContaining('Entfällt'), findsOneWidget);
+    // "EVA" must NOT show for a plain cancellation -- different cause,
+    // different label, even though both stripe red.
     expect(find.textContaining('EVA'), findsNothing);
-    expect(find.text('Mathe'), findsOneWidget);
+
+    final painter = _findStripesPainter(tester);
+    expect(painter, isNotNull);
+    expect(
+      painter!.colorA == const Color(0xFFFF0000) ||
+          painter.colorB == const Color(0xFFFF0000),
+      isTrue,
+    );
   });
 
-  testWidgets('room-change overlay (non-EVA) does not show EVA text', (
+  testWidgets('room-change overlay stripes orange, not red, and shows no EVA/Entfällt text', (
     tester,
   ) async {
     await _pumpBlock(
@@ -89,5 +112,46 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.textContaining('EVA'), findsNothing);
+    expect(find.textContaining('Entfällt'), findsNothing);
+
+    final painter = _findStripesPainter(tester);
+    expect(painter, isNotNull);
+    expect(
+      painter!.colorA == Colors.orange.shade400 ||
+          painter.colorB == Colors.orange.shade400,
+      isTrue,
+    );
+    expect(painter.colorA != const Color(0xFFFF0000), isTrue);
+    expect(painter.colorB != const Color(0xFFFF0000), isTrue);
+  });
+
+  testWidgets('substitute teacher overlay (no room change) also stripes orange', (
+    tester,
+  ) async {
+    await _pumpBlock(
+      tester,
+      _block(overlay: const LessonOverlay(vertreter: 'Frau Schmidt')),
+    );
+
+    expect(tester.takeException(), isNull);
+    final painter = _findStripesPainter(tester);
+    expect(painter, isNotNull);
+    expect(
+      painter!.colorA == Colors.orange.shade400 ||
+          painter.colorB == Colors.orange.shade400,
+      isTrue,
+    );
+  });
+
+  testWidgets('no overlay renders normally without stripes, EVA, or Entfällt', (
+    tester,
+  ) async {
+    await _pumpBlock(tester, _block());
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('EVA'), findsNothing);
+    expect(find.textContaining('Entfällt'), findsNothing);
+    expect(find.text('Mathe'), findsOneWidget);
+    expect(_findStripesPainter(tester), isNull);
   });
 }
