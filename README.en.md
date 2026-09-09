@@ -2,8 +2,8 @@
 
 *[Auf Deutsch lesen](README.md)*
 
-Your app for the Hessian school portal! In cooperation with the state school authority for the Groß-Gerau district and the Main-Taunus district.
-**In use at numerous schools in Hesse with over 35 thousand daily users.**
+Your app for the Hessian school portal! In cooperation with the staatliches Schulamt für den Landkreis Groß-Gerau und den Main-Taunus-Kreis.
+**In use at numerous schools in Hesse with over 45 thousand daily users.**
 
 <p align="center">
     <img src="https://github.com/alessioC42/lanis-mobile/assets/84250128/19d30436-32f7-4cbe-b78e-f2fee3583c28" width="60%">

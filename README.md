@@ -3,7 +3,7 @@
 *[Read this in English](README.en.md)*
 
 Deine App für das hessische Schulportal! In Zusammenarbeit mit dem staatlichen Schulamt für den Landkreis Groß-Gerau und den Main-Taunus-Kreis
-**Einsatz an zahlreichen Schulen in Hessen mit über 40 Tausend täglichen Nutzern.**
+**Einsatz an zahlreichen Schulen in Hessen mit über 45 Tausend täglichen Nutzern.**
 
 <p align="center">
     <img src="https://github.com/alessioC42/lanis-mobile/assets/84250128/19d30436-32f7-4cbe-b78e-f2fee3583c28" width="60%">
