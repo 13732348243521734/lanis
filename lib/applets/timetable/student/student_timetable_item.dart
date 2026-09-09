@@ -66,6 +66,40 @@ class DiagonalStripesPainter extends CustomPainter {
   }
 }
 
+/// WCAG contrast ratio between two colors, using their relative luminance
+/// ([Color.computeLuminance], which already implements the WCAG formula):
+/// `(lighter + 0.05) / (darker + 0.05)`. Ranges from 1 (no contrast) to
+/// 21 (pure black vs pure white).
+double contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final lighter = la > lb ? la : lb;
+  final darker = la > lb ? lb : la;
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/// Picks black or white text, whichever has the better *worst-case*
+/// contrast ratio across every color in [backgrounds] -- for a striped
+/// block, that's the subject's own color and the signal color (both
+/// arbitrary/unpredictable), since text is painted on top of both
+/// alternately and needs to stay legible against either one, not just
+/// whichever happens to be checked first. A fixed choice (e.g. always
+/// black) breaks down whenever a background is dark, so every background
+/// is checked explicitly rather than assumed.
+Color bestTextColorFor(List<Color> backgrounds) {
+  double worstCaseFor(Color textColor) {
+    var worst = double.infinity;
+    for (final bg in backgrounds) {
+      final ratio = contrastRatio(textColor, bg);
+      if (ratio < worst) worst = ratio;
+    }
+    return worst;
+  }
+
+  return worstCaseFor(Colors.black) >= worstCaseFor(Colors.white)
+      ? Colors.black
+      : Colors.white;
+}
 
 class ItemBlock extends StatelessWidget {
   final MergedLessonBlock? block;
@@ -430,22 +464,19 @@ class ItemBlock extends StatelessWidget {
     final isFullyStruck = isEva || isCancelled;
     final overlayLabel = isEva ? 'EVA' : (isCancelled ? 'Entfällt' : null);
 
-    // Striped backgrounds alternate between the subject's own (arbitrary,
-    // curated/hash-based) color and a fixed signal color (red/orange).
-    // Rather than computing contrast against two different colors, black
-    // is used unconditionally when striped -- reads acceptably against
-    // both typical subject colors and red/orange, matching common
-    // hazard-stripe conventions (e.g. black-on-yellow warning tape).
-    final textStyle = stripeColor != null
-        ? const TextStyle(fontSize: 12, color: Colors.black)
-        : TextStyle(
-            fontSize: 12,
-            color: color != null
-                ? (color!.computeLuminance() > 0.5
-                      ? Colors.black
-                      : Colors.white)
-                : null,
-          );
+    // Text color: pick whichever of black/white has the better worst-case
+    // WCAG contrast ratio against the actual background(s) -- for a
+    // striped block that's the subject's own color AND the signal color
+    // (red/orange), since text sits on top of both alternately. A fixed
+    // choice (e.g. always black) breaks down whenever the subject color
+    // itself is dark, so both backgrounds are checked explicitly rather
+    // than assumed.
+    final textStyle = TextStyle(
+      fontSize: 12,
+      color: color == null
+          ? null
+          : bestTextColorFor([color!, if (stripeColor != null) stripeColor]),
+    );
 
     double calcWidth = max(
       1,
