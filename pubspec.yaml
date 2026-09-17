@@ -297,3 +297,7 @@ flutter:
 flutter_intl:
   enabled: true
   class_name: AppLocalizations
+
+dependency_overrides:
+  liblanis:
+    path: ../liblanis
