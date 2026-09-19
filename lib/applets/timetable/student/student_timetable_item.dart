@@ -427,7 +427,12 @@ class ItemBlock extends StatelessWidget {
     // Both EVA and a cancelled lesson strike everything through -- see
     // _stripeSignalColor's doc comment for why they share treatment.
     final isFullyStruck = isEva || isCancelled;
-    final overlayLabel = isEva ? 'EVA' : (isCancelled ? 'Entfällt' : null);
+    // EVA no longer gets its own label here -- the struck-through
+    // subject name plus the red stripe/background already signal it,
+    // and the extra "EVA" text next to the name was redundant. A
+    // cancelled lesson keeps its "Entfällt" label since there's no
+    // separate strong visual cue for that case otherwise.
+    final overlayLabel = isCancelled ? 'Entfällt' : null;
 
     // Original contrast method: luminance > 0.5 -> black, else white.
     // Checked against the stripe/signal color when present (mirrors the
