@@ -1,0 +1,75 @@
+name: Build Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      lanis_ref:
+        description: 'Branch/Tag/Commit von lanis'
+        default: 'test/full-features'
+        required: false
+      liblanis_ref:
+        description: 'Branch/Tag/Commit von liblanis'
+        default: 'feat/timetable-history-and-week-nav'
+        required: false
+
+jobs:
+  build-android:
+    name: Flutter Android Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: lanis
+
+    steps:
+      - name: Checkout lanis (fork)
+        uses: actions/checkout@v6
+        with:
+          repository: 13732348243521734/lanis
+          ref: ${{ github.event.inputs.lanis_ref }}
+          path: lanis
+
+      - name: Checkout liblanis (fork)
+        uses: actions/checkout@v6
+        with:
+          repository: 13732348243521734/liblanis
+          ref: ${{ github.event.inputs.liblanis_ref }}
+          path: liblanis
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate l10n
+        run: dart run intl_utils:generate
+
+      # No android/key.properties in this fork (no release keystore secret
+      # configured) -- android/app/build.gradle's `release` buildType
+      # always references signingConfigs.release, which would fail with a
+      # null storeFile. --debug builds against the debug buildType
+      # instead (auto-generated debug keystore, no secrets needed) --
+      # same "unsigned, installable for testing" idea as ios.yml's
+      # `--no-codesign` IPA, just Android's equivalent of that.
+      - name: Build Android APK (debug-signed)
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lanis-debug-apk
+          path: lanis/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
