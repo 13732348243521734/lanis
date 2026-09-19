@@ -49,6 +49,17 @@ class _StudentTimetableBetterViewState
 
   int currentWeekIndex = -1;
 
+  /// Weeks relative to [mondayOfDisplayedWeek] currently being shown
+  /// (feature plan 7.5): `0` is the normal live view, negative values
+  /// browse backwards through `timetable_history`. Forward navigation
+  /// beyond `0` isn't offered yet -- that needs the `detail_klasse`
+  /// redirect (plan 5.3), which doesn't exist yet, so `0` is also the
+  /// upper bound here.
+  int weekOffset = 0;
+
+  DateTime _displayedWeekMonday() =>
+      mondayOfDisplayedWeek().add(Duration(days: 7 * weekOffset));
+
   @override
   void initState() {
     super.initState();
@@ -112,13 +123,63 @@ class _StudentTimetableBetterViewState
             updateSettings,
             Future<void> Function()? refresh,
           ) {
+            // Feature 2.5 (Stundenplanhistorie, plan 7.5): while browsing a
+            // past week (weekOffset < 0), the plan shown is a stored
+            // snapshot from timetable_history rather than the live fetch.
+            // `historicalTimetable` is `null` both while weekOffset == 0
+            // (not applicable) and when no snapshot exists that far back
+            // yet -- the two are told apart below via `weekOffset != 0`.
+            final database = ref.watch(lanisDatabaseProvider);
+            final account = ref.watch(activeAccountProvider);
+            final weekMonday = _displayedWeekMonday();
+            final TimeTable? historicalTimetable =
+                weekOffset == 0 || account == null
+                ? null
+                : loadTimetableForWeek(
+                    database: database,
+                    accountId: account.localId,
+                    weekMonday: weekMonday,
+                  );
+            final TimeTable displayTimetable = weekOffset == 0
+                ? timetable
+                : (historicalTimetable ??
+                      TimeTable(
+                        planForAll: const [],
+                        planForOwn: null,
+                        hours: const [],
+                        weekBadge: null,
+                      ));
+
+            final DateTime? earliestHistoryWeek = account == null
+                ? null
+                : earliestTimetableHistoryWeek(
+                    database: database,
+                    accountId: account.localId,
+                  );
+            // Enabled as long as there's a stored week strictly before the
+            // one currently shown -- once weekMonday reaches the earliest
+            // row on file, going further back would just hit
+            // viewingHistoryWithoutData (nothing to fall back to before
+            // that point, feature plan 7.5: "rückwärts unbegrenzt, soweit
+            // Historie vorhanden").
+            final navigation = resolveTimetableWeekNavigation(
+              weekOffset: weekOffset,
+              weekMonday: weekMonday,
+              earliestHistoryWeek: earliestHistoryWeek,
+              hasHistoricalData: historicalTimetable != null,
+            );
+            final bool canGoBack = navigation.canGoBack;
+            final bool canGoForward = navigation.canGoForward;
+            final bool viewingHistoryWithoutData =
+                navigation.viewingHistoryWithoutData;
+
             TimeTableType selectedType =
                 settings['student-selected-type'] == 'TimeTableType.own'
                 ? TimeTableType.own
                 : TimeTableType.all;
             bool showByWeek = settings['student-selected-week'] == true;
             List<TimetableDay> selectedPlan = getSelectedPlan(
-              timetable,
+              displayTimetable,
               selectedType,
               settings,
             );
@@ -131,7 +192,7 @@ class _StudentTimetableBetterViewState
             if (currentWeekIndex == -1) {
               currentWeekIndex = initialTimetableWeekIndex(
                 showByWeek: showByWeek,
-                weekBadge: timetable.weekBadge,
+                weekBadge: displayTimetable.weekBadge,
                 uniqueBadges: uniqueBadges,
               );
             }
@@ -143,7 +204,7 @@ class _StudentTimetableBetterViewState
 
             TimeTableData data = TimeTableData(
               selectedPlan,
-              timetable,
+              displayTimetable,
               settings,
               weekSelection.badge,
             );
@@ -156,15 +217,39 @@ class _StudentTimetableBetterViewState
                       onPressed: () => widget.openDrawerCb!(),
                     )
                   : null,
-              actions: data.hours.isEmpty
+              actions: data.hours.isEmpty && !viewingHistoryWithoutData
                   ? null
                   : [
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8.0),
                         child: Row(
                           children: [
+                            // Feature 2.5 (Stundenplanhistorie, plan 7.5):
+                            // Prev/Next week navigation. Forward is capped
+                            // at the live week (canGoForward) -- browsing
+                            // further into the future needs the
+                            // `detail_klasse` redirect (plan 5.3), not
+                            // built yet.
+                            IconButton(
+                              tooltip: AppLocalizations.of(
+                                context,
+                              ).timetablePreviousWeek,
+                              onPressed: canGoBack
+                                  ? () => setState(() => weekOffset -= 1)
+                                  : null,
+                              icon: const Icon(Icons.chevron_left),
+                            ),
+                            IconButton(
+                              tooltip: AppLocalizations.of(
+                                context,
+                              ).timetableNextWeek,
+                              onPressed: canGoForward
+                                  ? () => setState(() => weekOffset += 1)
+                                  : null,
+                              icon: const Icon(Icons.chevron_right),
+                            ),
                             if (uniqueBadges.isNotEmpty &&
-                                timetable.weekBadge != null)
+                                displayTimetable.weekBadge != null)
                               TextButton(
                                 onPressed: () {
                                   currentWeekIndex =
@@ -202,10 +287,11 @@ class _StudentTimetableBetterViewState
                     ],
             );
 
-            if (isTimetableVisuallyEmpty(
-              hoursEmpty: data.hours.isEmpty,
-              daysEmpty: data.timetableDays.isEmpty,
-            )) {
+            if (viewingHistoryWithoutData ||
+                isTimetableVisuallyEmpty(
+                  hoursEmpty: data.hours.isEmpty,
+                  daysEmpty: data.timetableDays.isEmpty,
+                )) {
               return Scaffold(
                 appBar: appBar,
                 body: RefreshIndicator(
@@ -225,13 +311,45 @@ class _StudentTimetableBetterViewState
                             const Icon(Icons.sentiment_dissatisfied, size: 60),
                             Padding(
                               padding: const EdgeInsets.all(32),
-                              child: Text(
-                                AppLocalizations.of(context).noEntries,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    viewingHistoryWithoutData
+                                        ? AppLocalizations.of(
+                                            context,
+                                          ).timetableHistoryUnavailableTitle
+                                        : AppLocalizations.of(
+                                            context,
+                                          ).noEntries,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (viewingHistoryWithoutData) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      AppLocalizations.of(
+                                        context,
+                                      ).timetableHistoryUnavailableSubtitle,
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    TextButton(
+                                      onPressed: () =>
+                                          setState(() => weekOffset = 0),
+                                      child: Text(
+                                        AppLocalizations.of(
+                                          context,
+                                        ).timetableBackToCurrentWeek,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                             const Spacer(),
@@ -258,18 +376,65 @@ class _StudentTimetableBetterViewState
                         subSnapshot.data?.status == FetcherStatus.done
                         ? subSnapshot.data?.content
                         : null;
+
+                    final now = DateTime.now();
+                    final todayDateOnly = DateTime(
+                      now.year,
+                      now.month,
+                      now.day,
+                    );
+
+                    // Feature 2 + 7.5: for the live/current week's days
+                    // that haven't happened yet, only the live fetch makes
+                    // sense (nothing to reconstruct from history). For any
+                    // past day -- whether just an already-passed day in
+                    // the current week (which the portal's own tabs stop
+                    // exposing once it's over) or a whole past week being
+                    // browsed via weekOffset -- prefer the live plan if it
+                    // still happens to have that date, otherwise fall back
+                    // to substitution_history.
+                    List<Substitution> substitutionsForDate(DateTime date) {
+                      final dateOnly = DateTime(
+                        date.year,
+                        date.month,
+                        date.day,
+                      );
+                      final dateStr = date.format('dd.MM.yyyy');
+                      final live =
+                          substitutionPlan?.days
+                              .where((d) => d.parsedDate == dateStr)
+                              .expand((d) => d.substitutions)
+                              .toList() ??
+                          const <Substitution>[];
+
+                      final isPastDate = dateOnly.isBefore(todayDateOnly);
+                      if (weekOffset == 0 && !isPastDate) {
+                        return live;
+                      }
+                      if (live.isNotEmpty) return live;
+                      if (account == null) return const <Substitution>[];
+                      final historical = loadSubstitutionDayForDisplay(
+                        database: database,
+                        accountId: account.localId,
+                        tagEn: DateFormat('yyyy-MM-dd').format(date),
+                      );
+                      return historical?.substitutions ??
+                          const <Substitution>[];
+                    }
+
                     return TimeTableView(
                       data: data,
-                      timetable: timetable,
+                      timetable: displayTimetable,
+                      weekMonday: weekMonday,
                       settings: settings,
                       updateSettings: updateSettings,
                       refresh: refresh,
-                      substitutionPlan: substitutionPlan,
+                      substitutionsForDate: substitutionsForDate,
                     );
                   },
                 ),
               ),
-              floatingActionButton: timetable.planForOwn != null
+              floatingActionButton: displayTimetable.planForOwn != null
                   ? Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -312,16 +477,19 @@ class TimeTableView extends StatelessWidget {
   final Function updateSettings;
   final Future<void> Function()? refresh;
 
-  /// Feature 2 (Stundenplan-Overlay): the currently fetched substitution
-  /// plan, or `null` if it hasn't loaded yet / errored / isn't available.
-  /// `null` just means "no overlay data this render" -- never blocks or
-  /// changes the plain-timetable rendering path.
-  final SubstitutionPlan? substitutionPlan;
+  /// Monday of the week actually being displayed. Normally
+  /// [mondayOfDisplayedWeek], but a different (earlier) Monday while
+  /// browsing timetable history via [weekOffset] in the parent state.
+  final DateTime weekMonday;
 
-  /// Real calendar date of this week's Monday. The timetable always shows
-  /// the current week (Mon-Fri), so this is *not* affected by
-  /// currentWeekIndex (that only switches between A/B-week badge
-  /// filters, not to a different calendar week).
+  /// Feature 2 (Stundenplan-Overlay) + 7.5 (Historie): resolves the
+  /// substitutions to overlay for a given calendar [date]. The parent
+  /// decides per-date whether that comes from the live fetch or from
+  /// `substitution_history` (feature plan 7.5: past days -- whether just
+  /// a day that already happened this week, or an entire past week being
+  /// browsed -- pull from history instead of the live plan, which the
+  /// portal itself no longer exposes them through).
+  final List<Substitution> Function(DateTime date) substitutionsForDate;
   double calculateColumnHeight(List<TimeTableRow> rows) {
     double totalHeight = 0;
     for (var row in rows) {
@@ -358,8 +526,9 @@ class TimeTableView extends StatelessWidget {
     required this.timetable,
     required this.settings,
     required this.updateSettings,
+    required this.weekMonday,
+    required this.substitutionsForDate,
     this.refresh,
-    this.substitutionPlan,
   });
 
   @override
@@ -525,8 +694,7 @@ class TimeTableView extends StatelessWidget {
               ),
               child: Builder(
                 builder: (context) {
-                  final monday = mondayOfDisplayedWeek();
-                  final date = monday.add(
+                  final date = weekMonday.add(
                     Duration(days: data.weekdayIndices[i]),
                   );
 
@@ -553,21 +721,16 @@ class TimeTableView extends StatelessWidget {
             Builder(
               builder: (context) {
                 // Feature 2 (Stundenplan-Overlay): resolve this column's
-                // real calendar date, find that date's substitutions (if
-                // the plan has loaded and covers it), then run the full
-                // decompose -> match -> merge pipeline once for this day.
-                // `date`/`weekdayIndices[i]` mirror the header above --
-                // both must agree on which weekday column `i` actually is.
-                final date = mondayOfDisplayedWeek().add(
+                // real calendar date, find that date's substitutions via
+                // the caller-provided resolver (live fetch or history --
+                // see [substitutionsForDate]'s doc comment), then run the
+                // full decompose -> match -> merge pipeline once for this
+                // day. `date`/`weekdayIndices[i]` mirror the header above
+                // -- both must agree on which weekday column `i` actually is.
+                final date = weekMonday.add(
                   Duration(days: data.weekdayIndices[i]),
                 );
-                final dateStr = date.format('dd.MM.yyyy');
-                final substitutionsForDay =
-                    substitutionPlan?.days
-                        .where((d) => d.parsedDate == dateStr)
-                        .expand((d) => d.substitutions)
-                        .toList() ??
-                    const <Substitution>[];
+                final substitutionsForDay = substitutionsForDate(date);
 
                 final blocksForDay = buildDisplayBlocksForDay(
                   subjects: data.timetableDays[i],

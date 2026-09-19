@@ -82,3 +82,32 @@ bool isTimetableVisuallyEmpty({
   required bool daysEmpty,
 }) =>
     hoursEmpty || daysEmpty;
+
+/// Feature 2.5 (Stundenplanhistorie, plan 7.5): navigation bounds for
+/// browsing past weeks via `weekOffset` (`0` = live week, negative =
+/// weeks back through `timetable_history`).
+///
+/// - [canGoBack]: `true` as long as there's a stored week strictly
+///   before [weekMonday] -- once it reaches the earliest row on file,
+///   going further back would only hit an empty week (nothing to fall
+///   back to before that point).
+/// - [canGoForward]: capped at the live week (`weekOffset == 0`).
+///   Browsing *into* the future needs the `detail_klasse` redirect
+///   (plan 5.3), which doesn't exist yet.
+/// - [viewingHistoryWithoutData]: `true` when browsing a past week
+///   ([weekOffset] != 0) for which no snapshot -- neither an exact one
+///   nor an earlier fallback -- exists.
+({bool canGoBack, bool canGoForward, bool viewingHistoryWithoutData})
+resolveTimetableWeekNavigation({
+  required int weekOffset,
+  required DateTime weekMonday,
+  required DateTime? earliestHistoryWeek,
+  required bool hasHistoricalData,
+}) {
+  return (
+    canGoBack:
+        earliestHistoryWeek != null && weekMonday.isAfter(earliestHistoryWeek),
+    canGoForward: weekOffset < 0,
+    viewingHistoryWithoutData: weekOffset != 0 && !hasHistoricalData,
+  );
+}
