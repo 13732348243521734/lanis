@@ -185,6 +185,41 @@ Future<void> callbackDispatcher() async {
 
         var authenticated = false;
 
+        // Feature 2.5 (Stundenplanhistorie, plan 7.5): "Refresh-Frequenz:
+        // 1x/Tag, gekoppelt an bestehenden mobilen Background-Task" --
+        // piggybacks on this same background run rather than adding a
+        // separate scheduled task, so timetable_history stays fresh even
+        // on days nobody opens the Stundenplan screen themselves.
+        // Deliberately not routed through the notificationTask loop below
+        // (or its per-applet settings toggle): there's no notification to
+        // show here, just silent bookkeeping via getHome()'s existing
+        // runTimetableHistoryDiff hook. It does still share the same
+        // authenticated session and the outer 'notifications-allow' gate
+        // as everything else in this loop -- reusing the existing task,
+        // exactly as the plan says, rather than building an independent
+        // sync toggle for this alone. Failure here is logged and
+        // swallowed: it must never abort notification delivery for other
+        // applets in this same run.
+        final accountType = account.accountType ?? AccountType.student;
+        if (!authenticated) {
+          await container
+              .read(sessionProvider.notifier)
+              .authenticate(withoutData: true);
+          authenticated = true;
+        }
+        final timetableSession = container.read(sessionProvider).asData?.value;
+        if (timetableSession != null &&
+            timetableSession.doesSupportFeature(
+              Applets.timetable,
+              overrideAccountType: accountType,
+            )) {
+          try {
+            await container.read(timetableParserProvider).getHome();
+          } catch (e, s) {
+            backgroundLogger.e(e, stackTrace: s);
+          }
+        }
+
         for (final applet in AppDefinitions.applets.where(
           (a) => a.notificationTask != null,
         )) {
