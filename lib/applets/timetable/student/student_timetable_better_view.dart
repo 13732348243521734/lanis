@@ -12,6 +12,7 @@ import 'package:lanis/applets/timetable/student/timetable_helper.dart';
 import 'package:lanis/applets/timetable/student/timetable_week_selection.dart';
 import 'package:lanis/generated/l10n.dart';
 import 'package:lanis/l10n/account_type_ui.dart';
+import 'package:lanis/utils/logger.dart';
 import 'package:lanis/widgets/combined_applet_builder.dart';
 
 final double itemHeight = 46;
@@ -182,7 +183,11 @@ class _StudentTimetableBetterViewState
                           _inFlightFetches.remove(weekMonday);
                         });
                       })
-                      .catchError((Object error) {
+                      .catchError((Object error, StackTrace stackTrace) {
+                        logger.e(
+                          'Live timetable fetch failed for week $weekMonday: $error',
+                          stackTrace: stackTrace,
+                        );
                         if (!mounted) return;
                         setState(() {
                           _liveFetchErrors[weekMonday] = error;
