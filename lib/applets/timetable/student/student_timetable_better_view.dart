@@ -12,7 +12,6 @@ import 'package:lanis/applets/timetable/student/timetable_helper.dart';
 import 'package:lanis/applets/timetable/student/timetable_week_selection.dart';
 import 'package:lanis/generated/l10n.dart';
 import 'package:lanis/l10n/account_type_ui.dart';
-import 'package:lanis/utils/logger.dart';
 import 'package:lanis/widgets/combined_applet_builder.dart';
 
 final double itemHeight = 46;
@@ -51,32 +50,13 @@ class _StudentTimetableBetterViewState
   int currentWeekIndex = -1;
 
   /// Weeks relative to [mondayOfDisplayedWeek] currently being shown
-  /// (feature plan 7.5): `0` is the normal live view, any other value
-  /// browses a different week -- backwards through `timetable_history`,
-  /// or (plan 5.3) forwards/into a gap via a live `detail_klasse`
-  /// redirect request, cached into `timetable_history` once resolved so
-  /// returning to that same week later is instant. Both directions are
-  /// always navigable; there's no synchronous way to know in advance how
-  /// far back/forward data actually exists, so the Prev/Next buttons stay
-  /// enabled and a failed lookup shows the "no data" state instead of
-  /// disabling the button ahead of time.
+  /// (feature plan 7.5): `0` is the normal live view, negative values
+  /// browse backwards through `timetable_history` -- purely what's
+  /// actually been recorded locally, since the school portal itself only
+  /// ever serves the current timetable (no per-date endpoint to query).
+  /// Forward stays capped at `0` for the same reason: there's nothing to
+  /// fetch beyond the live week.
   int weekOffset = 0;
-
-  /// Live-fetched weeks (plan 5.3), keyed by their Monday. Populated
-  /// on-demand the first time [weekOffset] lands on a week
-  /// `timetable_history` has no snapshot for; kept for the rest of this
-  /// screen's lifetime so navigating back and forth doesn't refetch.
-  final Map<DateTime, TimeTable> _liveFetchResults = {};
-
-  /// Weeks a live fetch was attempted for and failed (plan 5.3:
-  /// [TimetableRedirectException] or any other error) -- kept apart from
-  /// [_liveFetchResults] so the empty state can tell "we checked and
-  /// there's nothing" from "haven't checked yet".
-  final Map<DateTime, Object> _liveFetchErrors = {};
-
-  /// Weeks a live fetch is currently in flight for, so a rebuild while
-  /// waiting doesn't start a second, redundant request for the same week.
-  final Set<DateTime> _inFlightFetches = {};
 
   DateTime _displayedWeekMonday() =>
       mondayOfDisplayedWeek().add(Duration(days: 7 * weekOffset));
@@ -144,12 +124,15 @@ class _StudentTimetableBetterViewState
             updateSettings,
             Future<void> Function()? refresh,
           ) {
-            // Feature 2.5 (Stundenplanhistorie, plan 7.5) + 5.3: while
-            // browsing a week other than the live one, prefer a stored
-            // snapshot from timetable_history; if there isn't one (a
-            // future week, or a gap history never recorded), fall back to
-            // a live detail_klasse redirect fetch (plan 5.3), which also
-            // caches its result into timetable_history for next time.
+            // Feature 2.5 (Stundenplanhistorie, plan 7.5): while browsing
+            // a past week (weekOffset < 0), the plan shown is a stored
+            // snapshot from timetable_history -- purely from what's
+            // actually been recorded locally over time via the diff
+            // hook in TimetableStudentParser.getHome(). The school
+            // portal itself only ever exposes the *current* timetable;
+            // there's no live endpoint for a specific past or future
+            // week to fall back to, so a week nothing was recorded for
+            // simply has no data, full stop.
             final database = ref.watch(lanisDatabaseProvider);
             final account = ref.watch(activeAccountProvider);
             final weekMonday = _displayedWeekMonday();
@@ -162,46 +145,9 @@ class _StudentTimetableBetterViewState
                     weekMonday: weekMonday,
                   );
 
-            TimeTable? liveTimetable;
-            bool liveFetchFailed = false;
-            bool liveFetchPending = false;
-            if (weekOffset != 0 && historicalTimetable == null) {
-              if (_liveFetchResults.containsKey(weekMonday)) {
-                liveTimetable = _liveFetchResults[weekMonday];
-              } else if (_liveFetchErrors.containsKey(weekMonday)) {
-                liveFetchFailed = true;
-              } else {
-                liveFetchPending = true;
-                if (_inFlightFetches.add(weekMonday)) {
-                  ref
-                      .read(timetableParserProvider)
-                      .fetchAndCacheTimetableForWeek(weekMonday)
-                      .then((result) {
-                        if (!mounted) return;
-                        setState(() {
-                          _liveFetchResults[weekMonday] = result;
-                          _inFlightFetches.remove(weekMonday);
-                        });
-                      })
-                      .catchError((Object error, StackTrace stackTrace) {
-                        logger.e(
-                          'Live timetable fetch failed for week $weekMonday: $error',
-                          stackTrace: stackTrace,
-                        );
-                        if (!mounted) return;
-                        setState(() {
-                          _liveFetchErrors[weekMonday] = error;
-                          _inFlightFetches.remove(weekMonday);
-                        });
-                      });
-                }
-              }
-            }
-
             final TimeTable displayTimetable = weekOffset == 0
                 ? timetable
                 : (historicalTimetable ??
-                      liveTimetable ??
                       TimeTable(
                         planForAll: const [],
                         planForOwn: null,
@@ -209,12 +155,16 @@ class _StudentTimetableBetterViewState
                         weekBadge: null,
                       ));
 
-            // Both directions are always navigable (see weekOffset's doc
-            // comment) -- there's nothing to synchronously check ahead of
-            // time the way pure history-only browsing could.
-            const bool canGoBack = true;
-            const bool canGoForward = true;
-            final bool viewingHistoryWithoutData = liveFetchFailed;
+            // Forward is capped at the live week -- there's no live
+            // future request to make (see the comment above), so
+            // anything beyond weekOffset == 0 would only ever be an
+            // empty state anyway. Back is always offered; whether
+            // there's actually a snapshot that far is what
+            // viewingHistoryWithoutData below is for.
+            final bool canGoBack = true;
+            final bool canGoForward = weekOffset < 0;
+            final bool viewingHistoryWithoutData =
+                weekOffset != 0 && historicalTimetable == null;
 
             TimeTableType selectedType =
                 settings['student-selected-type'] == 'TimeTableType.own'
@@ -267,10 +217,11 @@ class _StudentTimetableBetterViewState
                         padding: const EdgeInsets.symmetric(horizontal: 8.0),
                         child: Row(
                           children: [
-                            // Feature 2.5 (Stundenplanhistorie, plan 7.5) +
-                            // 5.3: Prev/Next week navigation, always
-                            // enabled in both directions -- see
-                            // weekOffset's doc comment for why.
+                            // Feature 2.5 (Stundenplanhistorie, plan 7.5):
+                            // Prev/Next week navigation, bounded to
+                            // timetable_history -- see weekOffset's doc
+                            // comment for why forward stops at the live
+                            // week.
                             IconButton(
                               tooltip: AppLocalizations.of(
                                 context,
@@ -334,13 +285,6 @@ class _StudentTimetableBetterViewState
                       ),
                     ],
             );
-
-            if (liveFetchPending) {
-              return Scaffold(
-                appBar: appBar,
-                body: const Center(child: CircularProgressIndicator()),
-              );
-            }
 
             if (viewingHistoryWithoutData ||
                 isTimetableVisuallyEmpty(
